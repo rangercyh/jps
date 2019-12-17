@@ -2,6 +2,7 @@ local mtype = math.type
 local msqrt = math.sqrt
 local mpow = math.pow
 local mabs = math.abs
+local min = math.min
 
 local mt = {}
 mt.__index = mt
@@ -20,7 +21,10 @@ end
 
 local function dist(x1, y1, x2, y2, diagonal_walk)
     if diagonal_walk then
-        return msqrt(mpow(x1 - x2, 2) + mpow(y1 - y2, 2))
+        -- return msqrt(mpow(x1 - x2, 2) + mpow(y1 - y2, 2))
+        local dx = mabs(x1 - x2)
+        local dy = mabs(y1 - y2)
+        return 10*(dx + dy) + (14-20)*min(dx, dy)
     else
         return mabs(x1 - x2) + mabs(y1 - y2)
     end

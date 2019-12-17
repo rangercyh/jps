@@ -1,7 +1,7 @@
 -- =========== test a* ===============
 local astar = require "astar"
 
-local m = astar.new(20, 20)
+local m = astar.new(20, 20, true)
 
 m:set_start(0, 19)
 m:set_end(19, 1)
