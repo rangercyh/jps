@@ -100,6 +100,7 @@ function mt:find_path()
     if is_same(sx, sy, ex, ey) then
         return true, {}, os.clock() - t1
     end
+    -- check connected
     local function insert_openset(openset, g_score, pf, new_node)
         local in_pos = #openset + 1
         for k = 1, #openset do
@@ -178,6 +179,80 @@ function mt:find_path()
     return false
 end
 
+function mt:mark_connected()
+    self._connect_map = {}
+    local visited = {}
+    local around = {}
+    local connect_num = 0
+
+    local mark_visited = function(visited, x, y)
+        if not(visited[x]) then
+            visited[x] = {}
+        end
+        visited[x][y] = true
+    end
+    local mark_connected = function(connected, x, y, connect_num)
+        if not(connected[x]) then
+            connected[x] = {}
+        end
+        connected[x][y] = connect_num
+    end
+
+    for i = 0, self.w - 1 do
+        for j = 0, self.h - 1 do
+            if not(visited[i] and visited[i][j]) then
+                table.insert(around, {x = i, y = j})
+                connect_num = connect_num + 1
+                while #around > 0 do
+                    local node = table.remove(around, 1)
+                    local x, y = node.x, node.y
+                    mark_visited(visited, x, y)
+                    if not(is_block(self, x, y)) then
+                        mark_connected(self._connect_map, x, y, connect_num)
+                        local check_neighbors = {
+                            { x, y - 1 },
+                            { x, y + 1 },
+                            { x - 1, y },
+                            { x + 1, y },
+                            { x - 1, y - 1 },
+                            { x + 1, y - 1 },
+                            { x - 1, y + 1 },
+                            { x + 1, y + 1 },
+                        }
+                        for _, v in pairs(check_neighbors) do
+                            if in_range(self, v[1], v[2]) then
+                                if not(visited[v[1]] and visited[v[1]][v[2]]) then
+                                    mark_visited(visited, v[1], v[2])
+                                    if not(is_block(self, v[1], v[2])) then
+                                        mark_connected(self._connect_map, x, y, connect_num)
+                                        table.insert(around, {x = v[1], y = v[2]})
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function mt:dump_connected()
+    print('S====================')
+    for i = 0, self.h - 1 do
+        local s = ""
+        for j = 0, self.w - 1 do
+            if self._connect_map[j] and self._connect_map[j][i] then
+                s = s .. self._connect_map[j][i] .. ' '
+            else
+                s = s .. '* '
+            end
+        end
+        print(string.sub(s, 1, -2))
+    end
+    print('====================E')
+end
+
 function mt:dump()
     print('S====================')
     local function _in_path(self, x, y)
@@ -223,13 +298,34 @@ end
 
 local M = {}
 function M.new(w, h, diagonal_walk)
-    assert(mtype(w) == 'integer' and mtype(h) == 'integer' and w > 0 and h > 0)
-    local astar = {
-        w = w,
-        h = h,
-        diagonal_walk = diagonal_walk,
-        block = {},
-    }
-    return setmetatable(astar, mt)
+    if type(w) == "table" then
+        assert(#w > 0 and #w[1] > 0)
+        local matrix = w
+        local height = #matrix
+        local width = #matrix[1]
+        local rt = setmetatable({
+            w = width,
+            h = height,
+            diagonal_walk = not not h,
+            block = {},
+        }, mt)
+        for i = 1, height do
+            for j = 1, width do
+                if matrix[i][j] == 1 then
+                    rt:add_block(j - 1, i - 1)
+                end
+            end
+        end
+        return rt
+    else
+        assert(mtype(w) == 'integer' and mtype(h) == 'integer' and w > 0 and h > 0)
+        local astar = {
+            w = w,
+            h = h,
+            diagonal_walk = diagonal_walk,
+            block = {},
+        }
+        return setmetatable(astar, mt)
+    end
 end
 return M
