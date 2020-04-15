@@ -1,5 +1,5 @@
 -- =========== test a* ===============
--- [[
+--[[
 local astar = require "astar"
 
 -- [=[
@@ -64,4 +64,46 @@ m1:dump()
 print('cost time:', cost_time * 1000, 'ms')
 -- ]]
 -- =========== test jps ===============
--- local jps = require "jps"
+-- [====[
+local jps = require "jps"
+local t1 = os.clock()
+local j = jps.new({
+    w = 20,
+    h = 20,
+    obstacle = {
+        {1,1},{1,2},{1,3},{1,4},{1,5},{1,6}
+    },
+})
+j:set_start(0,0)
+j:set_end(10,10)
+-- j:clear_allblock()
+j:dump()
+j:add_block(1, 1)
+for i = 3, 19 do
+    j:add_block(4, i)
+end
+for i = 1, 18 do
+    j:add_block(1, i)
+end
+for i = 0, 10 do
+    j:add_block(18, i)
+end
+j:add_blockset({
+    {1,0},{1,19},{5,3},{6,3},{6,4},{6,5},{5,5},
+    {9,9},{10,9},{11,9},{12,9},{13,9},
+    {9,10},{9,11},{9,12},{9,13},{9,14},
+    {14,9},{14,10},{14,11},{14,12},{14,13},{14,14},
+    {9,14},{10,14},{11,14},{12,14},{13,14},
+})
+j:clear_block(1,1)
+j:set_start(0,10)
+j:set_end(0,10)
+-- j:set_end(19,1)
+j:dump()
+local path = j:find_path()
+print(path)
+for k,v in pairs(path) do
+    print(k, v)
+end
+print('cost time:', os.clock() - t1, 'ms')
+-- ]====]
