@@ -2,8 +2,8 @@
 #include <lauxlib.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <limits.h>
+#include "fibheap.h"
 
 #define MT_NAME ("_jps_search_metatable")
 
@@ -18,10 +18,13 @@ struct map {
     int height;
     int start;
     int end;
+    int *comefrom;
+    char *close_set;
+    struct node_data **node_map;
     char m[0];
 };
 
-static int
+static inline int
 getfield(lua_State *L, const char *f) {
     if (lua_getfield(L, -1, f) != LUA_TNUMBER) {
         return luaL_error(L, "invalid type %s", f);
@@ -31,7 +34,7 @@ getfield(lua_State *L, const char *f) {
     return v;
 }
 
-static int
+static inline int
 setobstacle(lua_State *L, struct map *m, int x, int y) {
     if (y >= m->height) {
         luaL_error(L, "add obstacle (y = %d) fail", y);
@@ -131,6 +134,70 @@ set_end(lua_State *L) {
     return 0;
 }
 
+int compare(struct node_data *old, struct node_data *new)
+{
+    if (new->f_value < old->f_value) {
+        return 1;
+    }
+    else {
+        return -1;
+    }
+}
+
+static inline int h_calc(int end, int pos, int w) {
+    int ex = end % w;
+    int ey = end / w;
+    int px = pos % w;
+    int py = pos / w;
+    int dx = ex - px;
+    int dy = ey - py;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    if (dy < 0) {
+        dy = -dy;
+    }
+    if (dx < dy) {
+        return dx *  7 + (dy-dx) * 5;
+    }
+    else {
+        return dy * 7 + (dx - dy) * 5;
+    }
+}
+
+struct node_data *construct(struct map *m, int pos, int g_value) {
+    struct node_data *node = (struct node_data *)malloc(sizeof(struct node_data));
+    node->pos = pos;
+    node->g_value = g_value;
+    node->f_value = g_value + h_calc(m->end, pos, m->width);
+    return node;
+}
+
+static inline int
+form_path(lua_State *L, int last, struct map *m) {
+    int pos = last;
+    lua_newtable(L);
+    int num = 0;
+    int x, y;
+    int w = m->width;
+    int len = m->width * m->height;
+    while (m->comefrom[pos] != -1) {
+#ifdef PATH_DEBUG
+        BITSET(m->m, pos + len);
+#endif
+        x = pos % w;
+        y = pos / w;
+        lua_newtable(L);
+        lua_pushnumber(L, x);
+        lua_rawseti(L, -2, 1);
+        lua_pushnumber(L, y);
+        lua_rawseti(L, -2, 2);
+        lua_rawseti(L, -2, ++num);
+        pos = m->comefrom[pos];
+    }
+    return 1;
+}
+
 static int
 find_path(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
@@ -146,6 +213,23 @@ find_path(lua_State *L) {
         return 1;
     }
     memset(&m->m[BITSLOT(len)], 0, BITSLOT(len) * sizeof(m->m[0]));
+    memset(m->comefrom, -1, len * sizeof(int));
+    memset(m->close_set, 0, len * sizeof(char));
+    memset(m->node_map, 0, len * sizeof(struct node_data *));
+
+    struct heap *open_set = fibheap_init(len, compare);
+    m->node_map[m->start] = construct(m, m->start, 0);
+    fibheap_insert(open_set, m->node_map[m->start]);
+    struct node_data *node;
+    while ((node = fibheap_pop(open_set))) {
+        m->close_set[node->pos] = 1;
+        if (node->pos == m->end) {
+            fibheap_destroy(open_set);
+            return form_path(L, node->pos, m);
+        }
+    }
+
+    fibheap_destroy(open_set);
     return 0;
 }
 
@@ -166,10 +250,12 @@ dump(lua_State * L) {
             s[pos++] = '*';
             mark = 1;
         } else {
+#ifdef PATH_DEBUG
             if (BITTEST(m->m, i + m->width * m->height)) {
                 s[pos++] = '0';
                 mark = 1;
             }
+#endif
         }
         if (i == m->start) {
             s[pos++] = 'S';
@@ -194,6 +280,10 @@ dump(lua_State * L) {
 static int
 gc(lua_State * L) {
     printf("may be something need to free\n");
+    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+    free(m->comefrom);
+    free(m->close_set);
+    free(m->node_map);
     return 0;
 }
 
@@ -232,6 +322,10 @@ lnewmap(lua_State *L) {
     m->start = -1;
     m->end = -1;
     memset(m->m, 0, BITSLOT(width * height) * 2 * sizeof(m->m[0]));
+    int len = width * height;
+    m->comefrom = (int *)malloc(len * sizeof(int));
+    m->close_set = (char *)malloc(len * sizeof(char));
+    m->node_map = (struct node_data **)malloc(len * sizeof(struct node_data *));
     if (lua_getfield(L, 1, "obstacle") == LUA_TTABLE) {
         int i = 1;
         while (lua_geti(L, -1, i) == LUA_TTABLE) {

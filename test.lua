@@ -102,8 +102,10 @@ j:set_end(0,10)
 j:dump()
 local path = j:find_path()
 print(path)
-for k,v in pairs(path) do
-    print(k, v)
+if path then
+    for k,v in pairs(path) do
+        print(k, v)
+    end
 end
 print('cost time:', os.clock() - t1, 'ms')
 -- ]====]
