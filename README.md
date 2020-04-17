@@ -1,3 +1,3 @@
 # path_finding
 
-make CFLAG=-DPATH_DEBUG 
+make CFLAG="-D__PATH_DEBUG__ -D__DEEP_DEBUG__"

@@ -5,6 +5,12 @@
 #include <limits.h>
 #include "fibheap.h"
 
+#ifdef __DEEP_DEBUG__
+    #define deep_print(format,...) printf(format, ##__VA_ARGS__)
+#else
+    #define deep_print(format,...)
+#endif
+
 #define MT_NAME ("_jps_search_metatable")
 
 #define BITMASK(b) (1 << ((b) % CHAR_BIT))
@@ -178,13 +184,16 @@ form_path(lua_State *L, int last, struct map *m) {
     int num = 0;
     int x, y;
     int w = m->width;
+#ifdef __PATH_DEBUG__
     int len = m->width * m->height;
+#endif
     while (m->comefrom[pos] != -1) {
-#ifdef PATH_DEBUG
+#ifdef __PATH_DEBUG__
         BITSET(m->m, pos + len);
 #endif
         x = pos % w;
         y = pos / w;
+        deep_print("jump path = %d %d\n", x, y);
         lua_newtable(L);
         lua_pushnumber(L, x);
         lua_rawseti(L, -2, 1);
@@ -261,34 +270,60 @@ static unsigned char natural_dir(unsigned char cur_dir) {
     return dir_set;
 }
 
-static int get_next_pos(int pos, unsigned char dir, int w) {
-    int new_pos = pos;
+static int get_next_pos(int pos, unsigned char dir, int w, int h) {
+    int x = pos % w;
+    int y = pos / w;
     switch (dir) {
-        case 0: new_pos = new_pos - w; break;
-        case 1: new_pos = new_pos + 1 - w; break;
-        case 2: new_pos = new_pos + 1; break;
-        case 3: new_pos = new_pos + 1 + w; break;
-        case 4: new_pos = new_pos + w; break;
-        case 5: new_pos = new_pos - 1 + w; break;
-        case 6: new_pos = new_pos - 1; break;
-        case 7: new_pos = new_pos - 1 - w; break;
-        default: new_pos = -1; break;
+        case 0:
+            y = y - 1;
+            break;
+        case 1:
+            x = x + 1;
+            y = y - 1;
+            break;
+        case 2:
+            x = x + 1;
+            break;
+        case 3:
+            x = x + 1;
+            y = y + 1;
+            break;
+        case 4:
+            y = y + 1;
+            break;
+        case 5:
+            x = x - 1;
+            y = y + 1;
+            break;
+        case 6:
+            x = x - 1;
+            break;
+        case 7:
+            x = x - 1;
+            y = y - 1;
+            break;
+        default: return -1;
     }
-    return new_pos;
+    if (!check_in_map(x, y, w, h)) {
+        return -1;
+    }
+    return x + y * w;
 }
 
 static int
-map_walkable(int pos, int limit) {
-    return check_in_map_pos(pos, limit) && !BITTEST(pos);
+map_walkable(int pos, int limit, struct map *m) {
+    return check_in_map_pos(pos, limit) && !BITTEST(m->m, pos);
 }
 
-static unsigned char force_dir(int pos, unsigned char cur_dir, int w, int h) {
+static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
     if (cur_dir == NO_DIRECTION) {
         return EMPTY_DIRECTIONSET;
     }
     unsigned char dir_set = EMPTY_DIRECTIONSET;
+    int w = m->width;
+    int h = m->height;
     int limit = w * h;
-#define WALKABLE(n) map_walkable(get_next_pos(pos, (cur_dir + (n)) % 8, w), limit)
+#define WALKABLE(n) map_walkable(get_next_pos(pos, (cur_dir + (n)) % 8, w, h), limit, m)
     if (dir_is_diagonal(cur_dir)) {
         if (WALKABLE(6) && !WALKABLE(5)) {
             dir_add(&dir_set, (cur_dir + 6) % 8);
@@ -300,7 +335,7 @@ static unsigned char force_dir(int pos, unsigned char cur_dir, int w, int h) {
         if (WALKABLE(1) && !WALKABLE(2)) {
             dir_add(&dir_set, (cur_dir + 1) % 8);
         }
-        if (WALKABLE(7) !WALKABLE(6)) {
+        if (WALKABLE(7) && !WALKABLE(6)) {
             dir_add(&dir_set, (cur_dir + 7) % 8);
         }
     }
@@ -321,29 +356,37 @@ static unsigned char next_dir(unsigned char *dirs) {
     return NO_DIRECTION;
 }
 
-static int jump(int end, int pos, unsigned char dir, int w, int h) {
-    int next_pos = get_next_pos(pos, dir, w);
-    if (!map_walkable(next_pos, w * h)) {
+static int jump(int end, int pos, unsigned char dir, struct map *m) {
+    int w = m->width;
+    int h = m->height;
+    int next_pos = get_next_pos(pos, dir, w, h);
+    deep_print("^^^^^^^ get next pos = %d %d   %d   %d %d\n", pos % w, pos / w, dir, next_pos %w, next_pos / w);
+    if (!map_walkable(next_pos, w * h, m)) {
+        deep_print("not walk = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return -1;
     }
     if (next_pos == end) {
+        deep_print("jump end = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return next_pos;
     }
-    if (force_dir(next_pos, dir, w, h) != EMPTY_DIRECTIONSET) {
+    if (force_dir(next_pos, dir, m) != EMPTY_DIRECTIONSET) {
+        deep_print("force dir = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return next_pos;
     }
     if (dir_is_diagonal(dir)) { // diagonal dir explore first check straight dir
         int i;
-        i = jump(end, next_pos, (dir + 7) % 8, w, h);
+        i = jump(end, next_pos, (dir + 7) % 8, m);
         if (i > -1) {
+            deep_print("jump found 7 = %d %d %d\n", next_pos % w, next_pos / w, dir);
             return next_pos;
         }
-        i = jump(end, next_pos, (dir + 1) % 8, w, h);
+        i = jump(end, next_pos, (dir + 1) % 8, m);
         if (i > -1) {
+            deep_print("jump found 1 = %d %d %d\n", next_pos % w, next_pos / w, dir);
             return next_pos;
         }
     }
-    return jump(end, next_pos, dir, w, h);
+    return jump(end, next_pos, dir, m);
 }
 
 static int
@@ -368,25 +411,40 @@ find_path(lua_State *L) {
     struct heap *open_set = fibheap_init(len, compare);
     struct node_data *node = construct(m, m->start, 0);
     m->open_set_map[m->start] = fibheap_insert(open_set, node);;
+    deep_print("put in open set point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
     while ((node = fibheap_pop(open_set))) {
         m->open_set_map[node->pos] = NULL;
         m->close_set[node->pos] = node;
+        deep_print("==================check new jump point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
         if (node->pos == m->end) {
             fibheap_destroy(open_set);
+            deep_print("xxx found path\n");
+            for (int k = 0; k < m->height; k++) {
+                for (int s = 0; s < m->width; s++) {
+                    deep_print("%d ", m->comefrom[k * m->height + s]);
+                }
+                deep_print("\n");
+            }
             return form_path(L, node->pos, m);
         }
         unsigned char cur_dir = calc_dir(m->comefrom[node->pos], node->pos, m->width);
-        unsigned char check_dirs = natural_dir(cur_dir) | force_dir(node->pos, cur_dir, m->width, m->height);
+        unsigned char check_dirs = natural_dir(cur_dir) | force_dir(node->pos, cur_dir, m);
         unsigned char dir = next_dir(&check_dirs);
         while (dir != NO_DIRECTION) {
-            int new_jump_point = jump(m->end, node->pos, dir, m->width, m->height);
+            int new_jump_point = jump(m->end, node->pos, dir, m);
+            deep_print("------check dir = %d %d %d %d %d\n", node->pos % m->width, node->pos / m->width, dir, new_jump_point % m->width, new_jump_point / m->width);
             if (new_jump_point != -1 && !m->close_set[new_jump_point]) {
-                int ng_value = node->g_value + dist(new_jump_point, node->pos);
+                int ng_value = node->g_value + dist(new_jump_point, node->pos, m->width);
                 struct heap_node *p = m->open_set_map[new_jump_point];
                 if (!p) {
+                    deep_print("come1: %d %d =  %d %d\n", new_jump_point % m->width, new_jump_point / m->width, node->pos % m->width, node->pos / m->width);
                     m->comefrom[new_jump_point] = node->pos;
-                    m->open_set_map[new_jump_point] = fibheap_insert(open_set, construct(m, new_jump_point, ng_value));
+                    struct node_data *test = construct(m, new_jump_point, ng_value);
+                    m->open_set_map[new_jump_point] = fibheap_insert(open_set, test);
+                    deep_print("found jump point: %d %d\n", new_jump_point % m->width, new_jump_point / m->width);
+                    deep_print("put in open set point: %d %d %d %d\n", new_jump_point % m->width, new_jump_point / m->width, test->g_value, test->f_value);
                 } else if (p->data->g_value > ng_value) {
+                    deep_print("come2: %d %d =  %d %d\n", new_jump_point % m->width, new_jump_point / m->width, node->pos % m->width, node->pos / m->width);
                     m->comefrom[new_jump_point] = node->pos;
                     p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
                     p->data->g_value = ng_value;
@@ -395,8 +453,8 @@ find_path(lua_State *L) {
             }
             dir = next_dir(&check_dirs);
         }
-
     }
+    deep_print("no found path\n");
 
     fibheap_destroy(open_set);
     return 0;
@@ -419,7 +477,7 @@ dump(lua_State * L) {
             s[pos++] = '*';
             mark = 1;
         } else {
-#ifdef PATH_DEBUG
+#ifdef __PATH_DEBUG__
             if (BITTEST(m->m, i + m->width * m->height)) {
                 s[pos++] = '0';
                 mark = 1;
@@ -448,7 +506,7 @@ dump(lua_State * L) {
 
 static int
 gc(lua_State * L) {
-    printf("may be something need to free\n");
+    deep_print("may be something need to free\n");
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
     free(m->close_set);

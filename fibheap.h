@@ -1,5 +1,5 @@
-#ifndef FIB_HEAP_H__
-#define FIB_HEAP_H__ 0
+#ifndef __FIB_HEAP_H__
+#define __FIB_HEAP_H__ 0
 
 struct node_data
 {
@@ -44,4 +44,4 @@ fibheap_decrease(struct heap *H, struct heap_node *node);
 void
 fibheap_destroy(struct heap *H);
 
-#endif /* FIB_HEAP_H__ */
+#endif /* __FIB_HEAP_H__ */

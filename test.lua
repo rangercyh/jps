@@ -77,7 +77,7 @@ local j = jps.new({
 j:set_start(0,0)
 j:set_end(10,10)
 -- j:clear_allblock()
-j:dump()
+-- j:dump()
 j:add_block(1, 1)
 for i = 3, 19 do
     j:add_block(4, i)
@@ -97,15 +97,20 @@ j:add_blockset({
 })
 j:clear_block(1,1)
 j:set_start(0,10)
-j:set_end(0,10)
--- j:set_end(19,1)
-j:dump()
+-- j:set_end(0,10)
+j:set_end(19,1)
 local path = j:find_path()
 print(path)
 if path then
     for k,v in pairs(path) do
         print(k, v)
+        if type(v) == 'table' then
+            for m, n in pairs(v) do
+                print(m, n)
+            end
+        end
     end
 end
+j:dump()
 print('cost time:', os.clock() - t1, 'ms')
 -- ]====]
