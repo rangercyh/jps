@@ -19,8 +19,7 @@ struct map {
     int start;
     int end;
     int *comefrom;
-    char *close_set;
-    struct node_data **node_map;
+    struct node_data **close_set;
     char m[0];
 };
 
@@ -46,13 +45,16 @@ setobstacle(lua_State *L, struct map *m, int x, int y) {
     return 0;
 }
 
+static inline int check_in_map(int x, int y, int w, int h) {
+    return x >= 0 && y >= 0 && x < w && y < h;
+}
+
 static int
 add_block(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     int x = luaL_checkinteger(L, 2);
     int y = luaL_checkinteger(L, 3);
-    if (x < 0 || x >= m->width ||
-        y < 0 || y >= m->height) {
+    if (!check_in_map(x, y, m->width, m->height)) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     BITSET(m->m, m->width * y + x);
@@ -82,8 +84,7 @@ clear_block(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     int x = luaL_checkinteger(L, 2);
     int y = luaL_checkinteger(L, 3);
-    if (x < 0 || x >= m->width ||
-        y < 0 || y >= m->height) {
+    if (!check_in_map(x, y, m->width, m->height)) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     BITCLEAR(m->m, m->width * y + x);
@@ -105,8 +106,7 @@ set_start(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     int x = luaL_checkinteger(L, 2);
     int y = luaL_checkinteger(L, 3);
-    if (x < 0 || x >= m->width ||
-        y < 0 || y >= m->height) {
+    if (!check_in_map(x, y, m->width, m->height)) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     int pos = m->width * y + x;
@@ -122,8 +122,7 @@ set_end(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     int x = luaL_checkinteger(L, 2);
     int y = luaL_checkinteger(L, 3);
-    if (x < 0 || x >= m->width ||
-        y < 0 || y >= m->height) {
+    if (!check_in_map(x, y, m->width, m->height)) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     int pos = m->width * y + x;
@@ -144,11 +143,11 @@ int compare(struct node_data *old, struct node_data *new)
     }
 }
 
-static inline int h_calc(int end, int pos, int w) {
-    int ex = end % w;
-    int ey = end / w;
-    int px = pos % w;
-    int py = pos / w;
+static inline int dist(int one, int two, int w) {
+    int ex = one % w;
+    int ey = one / w;
+    int px = two % w;
+    int py = two / w;
     int dx = ex - px;
     int dy = ey - py;
     if (dx < 0) {
@@ -169,7 +168,7 @@ struct node_data *construct(struct map *m, int pos, int g_value) {
     struct node_data *node = (struct node_data *)malloc(sizeof(struct node_data));
     node->pos = pos;
     node->g_value = g_value;
-    node->f_value = g_value + h_calc(m->end, pos, m->width);
+    node->f_value = g_value + dist(m->end, pos, m->width);
     return node;
 }
 
@@ -198,6 +197,32 @@ form_path(lua_State *L, int last, struct map *m) {
     return 1;
 }
 
+// N, NE, E, SE, S, SW, W, NW
+typedef unsigned char direction;
+#define NO_DIRECTION 8
+typedef unsigned char directionset;
+
+static int neighbour_calc(int from, int to, int w) {
+    if (from == -1) { // start
+
+    } else {
+        switch (to - from) {
+            case 1:  return;
+            case -1:
+            case w:
+            case -w:
+            case -w-1:
+            case -w+1:
+            case w-1:
+            case w+1:
+        }
+    }
+}
+
+static int jump() {
+
+}
+
 static int
 find_path(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
@@ -214,19 +239,35 @@ find_path(lua_State *L) {
     }
     memset(&m->m[BITSLOT(len)], 0, BITSLOT(len) * sizeof(m->m[0]));
     memset(m->comefrom, -1, len * sizeof(int));
-    memset(m->close_set, 0, len * sizeof(char));
-    memset(m->node_map, 0, len * sizeof(struct node_data *));
+    memset(m->close_set, 0, len * sizeof(struct node_data *));
 
     struct heap *open_set = fibheap_init(len, compare);
-    m->node_map[m->start] = construct(m, m->start, 0);
-    fibheap_insert(open_set, m->node_map[m->start]);
-    struct node_data *node;
+    struct node_data *node = construct(m, m->start, 0);
+    fibheap_insert(open_set, node);
     while ((node = fibheap_pop(open_set))) {
-        m->close_set[node->pos] = 1;
+        m->close_set[node->pos] = node;
         if (node->pos == m->end) {
             fibheap_destroy(open_set);
             return form_path(L, node->pos, m);
         }
+        unsigned char check_dirs = neighbour_calc(m->comefrom[node->pos], node->pos, m->width);
+        int dir = next_dir(&check_dirs);
+        while (dir != NO_DIRECTION) {
+            int new_jump_point = jump(node->pos, dir, m->width, m->height);
+            if (new_jump_point) {
+                struct node_data *p = m->close_set[new_jump_point];
+                if (p) {
+                    if () {
+
+                    }
+                } else {
+                    p = construct(m, new_jump_point, dist(new_jump_point, node->pos));
+                    fibheap_insert(open_set, p);
+                }
+            }
+            dir = next_dir(&check_dirs);
+        }
+
     }
 
     fibheap_destroy(open_set);
@@ -283,7 +324,6 @@ gc(lua_State * L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
     free(m->close_set);
-    free(m->node_map);
     return 0;
 }
 
@@ -324,8 +364,7 @@ lnewmap(lua_State *L) {
     memset(m->m, 0, BITSLOT(width * height) * 2 * sizeof(m->m[0]));
     int len = width * height;
     m->comefrom = (int *)malloc(len * sizeof(int));
-    m->close_set = (char *)malloc(len * sizeof(char));
-    m->node_map = (struct node_data **)malloc(len * sizeof(struct node_data *));
+    m->close_set = (struct node_data **)malloc(len * sizeof(struct node_data *));
     if (lua_getfield(L, 1, "obstacle") == LUA_TTABLE) {
         int i = 1;
         while (lua_geti(L, -1, i) == LUA_TTABLE) {
