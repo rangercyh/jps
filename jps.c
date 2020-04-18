@@ -347,7 +347,6 @@ static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
 
 static unsigned char next_dir(unsigned char *dirs) {
     unsigned char dir;
-    // first check 0 2 4 6
     for (dir = 0 ; dir < 8 ; dir++) {
         char dirBit = 1 << dir;
         if (*dirs & dirBit) {
