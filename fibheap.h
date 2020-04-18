@@ -36,9 +36,6 @@ struct node_data *
 fibheap_pop(struct heap *H);
 
 void
-fibheap_increase(struct heap *H, struct heap_node *node);
-
-void
 fibheap_decrease(struct heap *H, struct heap_node *node);
 
 void

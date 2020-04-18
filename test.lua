@@ -99,7 +99,10 @@ j:clear_block(1,1)
 j:set_start(0,10)
 -- j:set_end(0,10)
 j:set_end(19,1)
-local path = j:find_path()
+local path
+for i = 1, 10 do
+    path = j:find_path()
+end
 print(path)
 if path then
     for k,v in pairs(path) do

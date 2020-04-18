@@ -1,6 +1,6 @@
 # path_finding
 
-make CFLAG="-D__PATH_DEBUG__ -D__DEEP_DEBUG__"
+make CFLAG="-D__RECORD_PATH__ -D__PRINT_DEBUG__"
 
 to do:
 

@@ -5,7 +5,7 @@
 #include <limits.h>
 #include "fibheap.h"
 
-#ifdef __DEEP_DEBUG__
+#ifdef __PRINT_DEBUG__
     #define deep_print(format,...) printf(format, ##__VA_ARGS__)
 #else
     #define deep_print(format,...)
@@ -25,8 +25,10 @@ struct map {
     int start;
     int end;
     int *comefrom;
-    struct node_data **close_set;
     struct heap_node **open_set_map;
+/*
+    [map] | [close_set] | [path]
+*/
     char m[0];
 };
 
@@ -184,12 +186,12 @@ form_path(lua_State *L, int last, struct map *m) {
     int num = 0;
     int x, y;
     int w = m->width;
-#ifdef __PATH_DEBUG__
+#ifdef __RECORD_PATH__
     int len = m->width * m->height;
 #endif
     while (m->comefrom[pos] != -1) {
-#ifdef __PATH_DEBUG__
-        BITSET(m->m, pos + len);
+#ifdef __RECORD_PATH__
+        BITSET(m->m, len * 2 + pos);
 #endif
         x = pos % w;
         y = pos / w;
@@ -405,7 +407,6 @@ find_path(lua_State *L) {
     }
     memset(&m->m[BITSLOT(len)], 0, BITSLOT(len) * sizeof(m->m[0]));
     memset(m->comefrom, -1, len * sizeof(int));
-    memset(m->close_set, 0, len * sizeof(struct node_data *));
     memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
 
     struct heap *open_set = fibheap_init(len, compare);
@@ -414,7 +415,7 @@ find_path(lua_State *L) {
     deep_print("put in open set point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
     while ((node = fibheap_pop(open_set))) {
         m->open_set_map[node->pos] = NULL;
-        m->close_set[node->pos] = node;
+        BITSET(m->m, len + node->pos);
         deep_print("==================check new jump point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
         if (node->pos == m->end) {
             fibheap_destroy(open_set);
@@ -433,7 +434,7 @@ find_path(lua_State *L) {
         while (dir != NO_DIRECTION) {
             int new_jump_point = jump(m->end, node->pos, dir, m);
             deep_print("------check dir = %d %d %d %d %d\n", node->pos % m->width, node->pos / m->width, dir, new_jump_point % m->width, new_jump_point / m->width);
-            if (new_jump_point != -1 && !m->close_set[new_jump_point]) {
+            if (new_jump_point != -1 && !BITTEST(m->m, len + new_jump_point)) {
                 int ng_value = node->g_value + dist(new_jump_point, node->pos, m->width);
                 struct heap_node *p = m->open_set_map[new_jump_point];
                 if (!p) {
@@ -465,6 +466,9 @@ dump(lua_State * L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     printf("dump map state!!!!!!\n");
     int i, pos;
+#ifdef __RECORD_PATH__
+    int len = m->width * m->height;
+#endif
     char s[m->width * 2 + 2];
     for (pos = 0, i = 0; i < m->width * m->height; i++) {
         if (i > 0 && i % m->width == 0) {
@@ -477,8 +481,8 @@ dump(lua_State * L) {
             s[pos++] = '*';
             mark = 1;
         } else {
-#ifdef __PATH_DEBUG__
-            if (BITTEST(m->m, i + m->width * m->height)) {
+#ifdef __RECORD_PATH__
+            if (BITTEST(m->m, len * 2 + i)) {
                 s[pos++] = '0';
                 mark = 1;
             }
@@ -509,7 +513,6 @@ gc(lua_State * L) {
     deep_print("may be something need to free\n");
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
-    free(m->close_set);
     free(m->open_set_map);
     return 0;
 }
@@ -543,16 +546,20 @@ lnewmap(lua_State *L) {
     lua_settop(L, 1);
     int width = getfield(L, "w");
     int height = getfield(L, "h");
-    struct map *m = lua_newuserdata(L, sizeof(struct map) + BITSLOT(width * height) * 2 * sizeof(m->m[0]));
+    int len = width * height;
+#ifdef __RECORD_PATH__
+    int map_men_len = BITSLOT(len) * 3;
+#else
+    int map_men_len = BITSLOT(len) * 2;
+#endif
+    struct map *m = lua_newuserdata(L, sizeof(struct map) + map_men_len * sizeof(m->m[0]));
     m->width = width;
     m->height = height;
     m->start = -1;
     m->end = -1;
-    memset(m->m, 0, BITSLOT(width * height) * 2 * sizeof(m->m[0]));
-    int len = width * height;
     m->comefrom = (int *)malloc(len * sizeof(int));
-    m->close_set = (struct node_data **)malloc(len * sizeof(struct node_data *));
     m->open_set_map = (struct heap_node **)malloc(len * sizeof(struct heap_node *));
+    memset(m->m, 0, map_men_len * sizeof(m->m[0]));
     if (lua_getfield(L, 1, "obstacle") == LUA_TTABLE) {
         int i = 1;
         while (lua_geti(L, -1, i) == LUA_TTABLE) {
