@@ -100,7 +100,7 @@ j:set_start(0,10)
 -- j:set_end(0,10)
 j:set_end(19,1)
 local path
-for i = 1, 10 do
+for i = 1, 10000 do
     path = j:find_path()
 end
 print(path)
