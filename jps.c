@@ -5,10 +5,22 @@
 #include <limits.h>
 #include "fibheap.h"
 
+static inline void binaryprint(unsigned char a) {
+    char s[9];
+    itoa((int)a, s, 2);
+    printf("%s\n", s);
+}
+
 #ifdef __PRINT_DEBUG__
-    #define deep_print(format,...) printf(format, ##__VA_ARGS__)
+
+#define deep_print(format,...) printf(format, ##__VA_ARGS__)
+#define bin_print(a) binaryprint(a)
+
 #else
-    #define deep_print(format,...)
+
+#define deep_print(format,...)
+#define bin_print(a)
+
 #endif
 
 #define MT_NAME ("_jps_search_metatable")
@@ -232,10 +244,13 @@ static int dir_is_diagonal(unsigned char dir)
 
 static unsigned char calc_dir(int from, int to, int w) {
     if (from == -1) {
+        deep_print("from to w = %d %d %d\n", from, to, w);
         return NO_DIRECTION;
     } else {
         int fx = from % w, fy = from / w;
-        int tx = from % w, ty = from / w;
+        int tx = to % w, ty = to / w;
+        deep_print("111 from to w = %d %d %d\n", from, to, w);
+        deep_print("222 = %d %d %d %d\n", fx, fy, tx, ty);
         if (fx == tx && fy > ty) {
             return 0;
         } else if (fx == tx && fy < ty) {
@@ -254,22 +269,15 @@ static unsigned char calc_dir(int from, int to, int w) {
             return 5;
         } else {
             // error path
+            deep_print("error from to w = %d %d %d\n", from, to, w);
             return NO_DIRECTION;
         }
     }
 }
 
-static unsigned char natural_dir(unsigned char cur_dir) {
-    unsigned char dir_set = EMPTY_DIRECTIONSET;
-    if (cur_dir == NO_DIRECTION) {
-        return FULL_DIRECTIONSET;
-    }
-    dir_add(&dir_set, cur_dir);
-    if (dir_is_diagonal(cur_dir)) {
-        dir_add(&dir_set, (cur_dir + 1) % 8);
-        dir_add(&dir_set, (cur_dir + 7) % 8);
-    }
-    return dir_set;
+static int
+map_walkable(int pos, int limit, struct map *m) {
+    return check_in_map_pos(pos, limit) && !BITTEST(m->m, pos);
 }
 
 static int get_next_pos(int pos, unsigned char dir, int w, int h) {
@@ -312,9 +320,39 @@ static int get_next_pos(int pos, unsigned char dir, int w, int h) {
     return x + y * w;
 }
 
-static int
-map_walkable(int pos, int limit, struct map *m) {
-    return check_in_map_pos(pos, limit) && !BITTEST(m->m, pos);
+static inline int walkable(struct map *m, int pos, int cur_dir, int next_dir) {
+    return map_walkable(
+        get_next_pos(pos, (cur_dir + (next_dir)) % 8, m->width, m->height),
+        m->width * m->height, m);
+}
+
+static unsigned char natural_dir(int pos, unsigned char cur_dir, struct map *m) {
+    unsigned char dir_set = EMPTY_DIRECTIONSET;
+    if (cur_dir == NO_DIRECTION) {
+        return FULL_DIRECTIONSET;
+    }
+#ifdef __CONNER_SOLVE__
+    if (dir_is_diagonal(cur_dir)) {
+        if (!walkable(m, pos, cur_dir, 7)) {
+            dir_add(&dir_set, (cur_dir + 1) % 8);
+        } else if (!walkable(m, pos, cur_dir, 1)) {
+            dir_add(&dir_set, (cur_dir + 7) % 8);
+        } else {
+            dir_add(&dir_set, cur_dir);
+            dir_add(&dir_set, (cur_dir + 1) % 8);
+            dir_add(&dir_set, (cur_dir + 7) % 8);
+        }
+    } else {
+        dir_add(&dir_set, cur_dir);
+    }
+#else
+    dir_add(&dir_set, cur_dir);
+    if (dir_is_diagonal(cur_dir)) {
+        dir_add(&dir_set, (cur_dir + 1) % 8);
+        dir_add(&dir_set, (cur_dir + 7) % 8);
+    }
+#endif
+    return dir_set;
 }
 
 static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
@@ -322,10 +360,23 @@ static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
         return EMPTY_DIRECTIONSET;
     }
     unsigned char dir_set = EMPTY_DIRECTIONSET;
-    int w = m->width;
-    int h = m->height;
-    int limit = w * h;
-#define WALKABLE(n) map_walkable(get_next_pos(pos, (cur_dir + (n)) % 8, w, h), limit, m)
+#define WALKABLE(n) walkable(m, pos, cur_dir, n)
+#ifdef __CONNER_SOLVE__
+    if (!dir_is_diagonal(cur_dir)) {
+        if (WALKABLE(2) && !(WALKABLE(3))) {
+            dir_add(&dir_set, (cur_dir + 2) % 8);
+            if (WALKABLE(1)) {
+                dir_add(&dir_set, (cur_dir + 1) % 8);
+            }
+        }
+        if (WALKABLE(6) && !(WALKABLE(5))) {
+            dir_add(&dir_set, (cur_dir + 6) % 8);
+            if (WALKABLE(7)) {
+                dir_add(&dir_set, (cur_dir + 7) % 8);
+            }
+        }
+    }
+#else
     if (dir_is_diagonal(cur_dir)) {
         if (WALKABLE(6) && !WALKABLE(5)) {
             dir_add(&dir_set, (cur_dir + 6) % 8);
@@ -341,6 +392,7 @@ static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
             dir_add(&dir_set, (cur_dir + 7) % 8);
         }
     }
+#endif
 #undef WALKABLE
     return dir_set;
 }
@@ -428,8 +480,14 @@ find_path(lua_State *L) {
             return form_path(L, node->pos, m);
         }
         unsigned char cur_dir = calc_dir(m->comefrom[node->pos], node->pos, m->width);
-        unsigned char check_dirs = natural_dir(cur_dir) | force_dir(node->pos, cur_dir, m);
+        deep_print("--aaaa come pos %d %d   %d %d  %d\n", m->comefrom[node->pos] % m->width,
+            m->comefrom[node->pos] / m->width, node->pos % m->width, node->pos / m->width, cur_dir);
+        unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
+        deep_print("-----))))))))))-nodes x, y, cur_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, cur_dir);
+        bin_print(check_dirs);
         unsigned char dir = next_dir(&check_dirs);
+        deep_print("-----))))))))))-nodee x, y, dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
+        bin_print(check_dirs);
         while (dir != NO_DIRECTION) {
             int new_jump_point = jump(m->end, node->pos, dir, m);
             deep_print("------check dir = %d %d %d %d %d\n", node->pos % m->width, node->pos / m->width, dir, new_jump_point % m->width, new_jump_point / m->width);
@@ -451,7 +509,11 @@ find_path(lua_State *L) {
                     fibheap_decrease(open_set, p);
                 }
             }
+            deep_print("-----))))))))))-dirnode1 x, y, cur_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
+            bin_print(check_dirs);
             dir = next_dir(&check_dirs);
+            deep_print("-----))))))))))-dirnode2 x, y, next_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
+            bin_print(check_dirs);
         }
     }
     deep_print("no found path\n");

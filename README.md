@@ -1,6 +1,19 @@
 # path_finding
 
-make CFLAG="-D__RECORD_PATH__ -D__PRINT_DEBUG__"
+if you prefer to across conner diagonal grid then just make.
+if you prefer to avoid across conner diagonal grid:
+make CFLAG="-D__CONNER_SOLVE__"
+
+1. avoid entry conner barriers:
+make CFLAG="-D__CONNER_SOLVE__"
+
+2. record path in dump
+make CFLAG="-D__RECORD_PATH__"
+
+3. print detail search
+make CFLAG="-D__PRINT_DEBUG__"
+
+make CFLAG="-D__RECORD_PATH__ -D__PRINT_DEBUG__ -D__CONNER_SOLVE__"
 
 to do:
 
