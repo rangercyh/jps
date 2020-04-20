@@ -23,7 +23,15 @@ print detail search
 https://runzhiwang.github.io/2019/06/21/jps/
 
 1. prune mid jump point
-2. mark_connected first to avoid unreachable point like astar.lua
+~~  2. mark_connected first to avoid unreachable point like astar.lua  ~~
+
+### map dump
+
+![](https://github.com/rangercyh/path_finding/blob/master/img/4.jpg)
+
+### mark connected
+
+![](https://github.com/rangercyh/path_finding/blob/master/img/3.jpg)
 
 ### 10000 times -D__RECORD_PATH__
 
