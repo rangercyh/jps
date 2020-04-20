@@ -53,8 +53,9 @@ j:clear_block(1,1)      // clear one obstacle point
 j:clear_allblock()      // clear all obstacle
 j:mark_connected()      // mark map connected for speed up search path to unreachable point
 j:dump_connected()      // print connected mark of map
-/* search for path from start to end, return the jump points list in table
-   if make with CFLAG="-D__CONNER_SOLVE__", it will avoid across conner diagonal grid
+/* 
+    search for path from start to end, return the jump points list in table
+    if make with CFLAG="-D__CONNER_SOLVE__", it will avoid across conner diagonal grid
 */
 local path = j:find_path()
 j:dump()                // print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
