@@ -1,4 +1,5 @@
 #include <lua.h>
+#include <lualib.h>
 #include <lauxlib.h>
 #include <string.h>
 #include <stdlib.h>
@@ -37,6 +38,8 @@ struct map {
     int start;
     int end;
     int *comefrom;
+    char mark_connected;
+    int *connected;
     struct heap_node **open_set_map;
 /*
     [map] | [close_set] | [path]
@@ -452,14 +455,15 @@ find_path(lua_State *L) {
         luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
     }
     int len = m->width * m->height;
-    if (m->start == m->end) {
-        lua_newtable(L);
-        return 1;
-    }
     memset(&m->m[BITSLOT(len)], 0, BITSLOT(len) * sizeof(m->m[0]));
     memset(m->comefrom, -1, len * sizeof(int));
     memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
-
+    if (m->start == m->end) {
+        return form_path(L, m->end, m);
+    }
+    if (m->mark_connected && (m->connected[m->start] != m->connected[m->end])) {
+        return 0;
+    }
     struct heap *open_set = fibheap_init(len, compare);
     struct node_data *node = construct(m, m->start, 0);
     m->open_set_map[m->start] = fibheap_insert(open_set, node);;
@@ -470,13 +474,6 @@ find_path(lua_State *L) {
         deep_print("==================check new jump point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
         if (node->pos == m->end) {
             fibheap_destroy(open_set);
-            deep_print("xxx found path\n");
-            for (int k = 0; k < m->height; k++) {
-                for (int s = 0; s < m->width; s++) {
-                    deep_print("%d ", m->comefrom[k * m->height + s]);
-                }
-                deep_print("\n");
-            }
             return form_path(L, node->pos, m);
         }
         unsigned char cur_dir = calc_dir(m->comefrom[node->pos], node->pos, m->width);
@@ -522,8 +519,70 @@ find_path(lua_State *L) {
     return 0;
 }
 
+void flood_mark(struct map *m, int *visited, int pos, int connected_num, int limit) {
+    if (visited[pos]) {
+        return;
+    }
+    visited[pos] = 1;
+    m->connected[pos] = connected_num;
+#define FLOOD(n) do { \
+    if (check_in_map_pos(n, limit) && !BITTEST(m->m, n)) { \
+        flood_mark(m, visited, n, connected_num, limit); \
+    } \
+} while(0);
+    FLOOD(pos - 1);
+    FLOOD(pos + 1);
+    FLOOD(pos - m->width);
+    FLOOD(pos + m->width);
+#undef FLOOD
+}
+
+static int mark_connected(lua_State *L) {
+    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+    int len = m->width * m->height;
+    if (!m->mark_connected) {
+        m->connected = (int *)malloc(len * sizeof(int));
+        m->mark_connected = 1;
+    }
+    memset(m->connected, 0, len * sizeof(int));
+    int i, connected_num = 0;
+    int limit = m->width * m->height;
+    int visited[len];
+    memset(visited, 0, len * sizeof(int));
+    for (i = 0; i < len; i++) {
+        if (!visited[i] && !BITTEST(m->m, i)) {
+            connected_num++;
+            flood_mark(m, visited, i, connected_num, limit);
+        }
+    }
+    return 0;
+}
+
 static int
-dump(lua_State * L) {
+dump_connected(lua_State *L) {
+    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+    printf("dump map connected state!!!!!!\n");
+    if (!m->mark_connected) {
+        printf("have not mark connected.\n");
+        return 0;
+    }
+    int i;
+    for (i = 0; i < m->width * m->height; i++) {
+        int mark = m->connected[i];
+        if (mark > 0) {
+            printf("%d ", mark);
+        } else {
+            printf("* ");
+        }
+        if ((i + 1) % m->width == 0) {
+            printf("\n");
+        }
+    }
+    return 0;
+}
+
+static int
+dump(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     printf("dump map state!!!!!!\n");
     int i, pos;
@@ -570,11 +629,14 @@ dump(lua_State * L) {
 }
 
 static int
-gc(lua_State * L) {
+gc(lua_State *L) {
     deep_print("may be something need to free\n");
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
     free(m->open_set_map);
+    if (m->mark_connected) {
+        free(m->connected);
+    }
     return 0;
 }
 
@@ -589,6 +651,8 @@ lmetatable(lua_State *L) {
             {"set_start", set_start},
             {"set_end", set_end},
             {"find_path", find_path},
+            {"mark_connected", mark_connected},
+            {"dump_connected", dump_connected},
             {"dump", dump},
             { NULL, NULL }
         };
@@ -607,6 +671,7 @@ lnewmap(lua_State *L) {
     lua_settop(L, 1);
     int width = getfield(L, "w");
     int height = getfield(L, "h");
+    lua_assert(width > 0 && height > 0);
     int len = width * height;
 #ifdef __RECORD_PATH__
     int map_men_len = BITSLOT(len) * 3;
@@ -618,6 +683,7 @@ lnewmap(lua_State *L) {
     m->height = height;
     m->start = -1;
     m->end = -1;
+    m->mark_connected = 0;
     m->comefrom = (int *)malloc(len * sizeof(int));
     m->open_set_map = (struct heap_node **)malloc(len * sizeof(struct heap_node *));
     memset(m->m, 0, map_men_len * sizeof(m->m[0]));

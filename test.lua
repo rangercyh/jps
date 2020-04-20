@@ -97,8 +97,11 @@ j:add_blockset({
 })
 j:clear_block(1,1)
 j:set_start(0,10)
--- j:set_end(0,10)
+-- j:set_end(0,10) -- test start == end
+-- j:set_end(10,10) -- test connected
 j:set_end(19,1)
+j:mark_connected()
+j:dump_connected()
 local path
 for i = 1, 10000 do
     path = j:find_path()
