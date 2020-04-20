@@ -1,10 +1,12 @@
 # path_finding
 
-### if you prefer to across conner diagonal grid then just make.
+## if you prefer to across conner diagonal grid then just make.
 
-### if you prefer to avoid across conner diagonal grid:
+## if you prefer to avoid across conner diagonal grid:
 
     make CFLAG="-D__CONNER_SOLVE__"
+
+# CFLAG explain
 
 avoid entry conner barriers
 
@@ -18,7 +20,7 @@ print detail search
 
     make CFLAG="-D__PRINT_DEBUG__"
 
-## to do:
+# to do:
 
 https://runzhiwang.github.io/2019/06/21/jps/
 
@@ -26,18 +28,50 @@ https://runzhiwang.github.io/2019/06/21/jps/
 
 ~~2. mark_connected first to avoid unreachable point like astar.lua~~
 
-### map dump
+# how to use
+
+```lua
+local jps = require "jps"
+local j = jps.new({     // create 2D grid map
+    w = 20,             // width of map
+    h = 20,             // height of map
+    obstacle = {        // obstacle in map
+        {1,1},{1,2},{1,3},{1,4},{1,5},{1,6}
+    },
+})
+j:set_start(0,0)        // set start point
+j:set_end(10,10)        // set end point
+j:add_block(1, 1)       // set one obstacle point
+j:add_blockset({        // batch set obstacle points
+    {1,0},{1,19},{5,3},{6,3},{6,4},{6,5},{5,5},
+    {9,9},{10,9},{11,9},{12,9},{13,9},
+    {9,10},{9,11},{9,12},{9,13},{9,14},
+    {14,9},{14,10},{14,11},{14,12},{14,13},{14,14},
+    {9,14},{10,14},{11,14},{12,14},{13,14},
+})
+j:clear_block(1,1)      // clear one obstacle point
+j:clear_allblock()      // clear all obstacle
+j:mark_connected()      // mark map connected for speed up search path to unreachable point
+j:dump_connected()      // print connected mark of map
+/* search for path from start to end, return the jump points list in table
+   if make with CFLAG="-D__CONNER_SOLVE__", it will avoid across conner diagonal grid
+*/
+local path = j:find_path()
+j:dump()                // print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
+```
+
+## map dump
 
 ![](https://github.com/rangercyh/path_finding/blob/master/img/4.jpg)
 
-### mark connected
+## mark connected
 
 ![](https://github.com/rangercyh/path_finding/blob/master/img/3.jpg)
 
-### 10000 times path finding
+## 10000 times path finding
 
 ![](https://github.com/rangercyh/path_finding/blob/master/img/1.jpg)
 
-### 10000 times path finding with -D__CONNER_SOLVE__
+## 10000 times path finding with -D__CONNER_SOLVE__
 
 ![](https://github.com/rangercyh/path_finding/blob/master/img/2.jpg)
