@@ -82,7 +82,7 @@ fibheap_insert(struct heap *H, struct node_data *d)
     return node;
 }
 
-static inline void
+static void
 fibheap_link(struct heap_node *y, struct heap_node *x)
 {
     struct heap_node *temp;
@@ -107,7 +107,7 @@ fibheap_link(struct heap_node *y, struct heap_node *x)
     y->marked = 0;
 }
 
-static inline void
+static void
 fibheap_consolidate(struct heap *H)
 {
     int D, i, d;
@@ -182,7 +182,7 @@ fibheap_pop(struct heap *H)
     return ret;
 }
 
-static inline void
+static void
 fibheap_cut(struct heap *H, struct heap_node *x, struct heap_node *y)
 {
     (y->degree)--;
@@ -201,7 +201,7 @@ fibheap_cut(struct heap *H, struct heap_node *x, struct heap_node *y)
     exchange_right_node(H->the_one, x);
 }
 
-static inline void
+static void
 fibheap_casc_cut(struct heap *H, struct heap_node *y)
 {
     struct heap_node *z = y->parent;
@@ -268,7 +268,7 @@ fibheap_decrease(struct heap *H, struct heap_node *node)
     }
 }
 
-static inline void
+static void
 fibheap_destroy_rec(struct heap_node *node)
 {
     struct heap_node *start = node;

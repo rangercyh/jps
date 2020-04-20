@@ -158,7 +158,7 @@ set_end(lua_State *L) {
     return 0;
 }
 
-int compare(struct node_data *old, struct node_data *new)
+static inline int compare(struct node_data *old, struct node_data *new)
 {
     if (new->f_value < old->f_value) {
         return 1;
@@ -168,7 +168,7 @@ int compare(struct node_data *old, struct node_data *new)
     }
 }
 
-static inline int dist(int one, int two, int w) {
+static int dist(int one, int two, int w) {
     int ex = one % w, ey = one / w;
     int px = two % w, py = two / w;
     int dx = ex - px, dy = ey - py;
@@ -186,7 +186,7 @@ static inline int dist(int one, int two, int w) {
     }
 }
 
-struct node_data *construct(struct map *m, int pos, int g_value) {
+static struct node_data *construct(struct map *m, int pos, int g_value) {
     struct node_data *node = (struct node_data *)malloc(sizeof(struct node_data));
     node->pos = pos;
     node->g_value = g_value;
@@ -194,7 +194,7 @@ struct node_data *construct(struct map *m, int pos, int g_value) {
     return node;
 }
 
-static inline int
+static int
 form_path(lua_State *L, int last, struct map *m) {
     int pos = last;
     lua_newtable(L);
@@ -278,7 +278,7 @@ static unsigned char calc_dir(int from, int to, int w) {
     }
 }
 
-static int
+static inline int
 map_walkable(int pos, int limit, struct map *m) {
     return check_in_map_pos(pos, limit) && !BITTEST(m->m, pos);
 }
@@ -519,7 +519,7 @@ find_path(lua_State *L) {
     return 0;
 }
 
-void flood_mark(struct map *m, int *visited, int pos, int connected_num, int limit) {
+static void flood_mark(struct map *m, int *visited, int pos, int connected_num, int limit) {
     if (visited[pos]) {
         return;
     }
