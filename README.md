@@ -20,7 +20,7 @@ print detail search
 
     make CFLAG="-D__PRINT_DEBUG__"
 
-# to do:
+# to do
 
 https://runzhiwang.github.io/2019/06/21/jps/
 
