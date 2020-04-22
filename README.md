@@ -1,4 +1,5 @@
 # path_finding
+http://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-aaai11.pdf
 
 ## if you prefer to across conner diagonal grid then just make.
 
