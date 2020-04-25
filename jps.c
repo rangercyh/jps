@@ -455,7 +455,7 @@ find_path(lua_State *L) {
         luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
     }
     int len = m->width * m->height;
-    memset(&m->m[BITSLOT(len)], 0, BITSLOT(len) * sizeof(m->m[0]));
+    memset(&m->m[BITSLOT(len) + 1], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
     memset(m->comefrom, -1, len * sizeof(int));
     memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
     if (m->start == m->end) {
@@ -674,9 +674,9 @@ lnewmap(lua_State *L) {
     lua_assert(width > 0 && height > 0);
     int len = width * height;
 #ifdef __RECORD_PATH__
-    int map_men_len = BITSLOT(len) * 3;
+    int map_men_len = (BITSLOT(len) + 1) * 3;
 #else
-    int map_men_len = BITSLOT(len) * 2;
+    int map_men_len = (BITSLOT(len) + 1) * 2;
 #endif
     struct map *m = lua_newuserdata(L, sizeof(struct map) + map_men_len * sizeof(m->m[0]));
     m->width = width;
