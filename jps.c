@@ -212,9 +212,9 @@ form_path(lua_State *L, int last, struct map *m) {
         y = pos / w;
         deep_print("jump path = %d %d\n", x, y);
         lua_newtable(L);
-        lua_pushnumber(L, x);
+        lua_pushinteger(L, x);
         lua_rawseti(L, -2, 1);
-        lua_pushnumber(L, y);
+        lua_pushinteger(L, y);
         lua_rawseti(L, -2, 2);
         lua_rawseti(L, -2, ++num);
         pos = m->comefrom[pos];
