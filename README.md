@@ -23,11 +23,20 @@ print detail search
 
 # to do
 
+https://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-icaps14.pdf
+
 https://runzhiwang.github.io/2019/06/21/jps/
 
-1. prune mid jump point
 
-~~2. mark_connected first to avoid unreachable point like astar.lua~~
+~~1. mark_connected first to avoid unreachable point like astar.lua~~
+
+~~2. use bit calc to speed up jump point finding~~
+
+~~3. mem use optimize~~
+
+4. prune mid jump point
+
+5. final path optimize
 
 # how to use
 
@@ -64,16 +73,16 @@ j:dump()                // print map, if make with CFLAG="-D__RECORD_PATH__", it
 
 ## map dump
 
-![](https://github.com/rangercyh/path_finding/blob/master/img/4.jpg)
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/4.jpg)
 
 ## mark connected
 
-![](https://github.com/rangercyh/path_finding/blob/master/img/3.jpg)
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/3.jpg)
 
 ## 10000 times path finding
 
-![](https://github.com/rangercyh/path_finding/blob/master/img/1.jpg)
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/1.jpg)
 
 ## 10000 times path finding with -D__CONNER_SOLVE__
 
-![](https://github.com/rangercyh/path_finding/blob/master/img/2.jpg)
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/2.jpg)

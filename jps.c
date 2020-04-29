@@ -6,7 +6,7 @@
 #include <limits.h>
 #include "fibheap.h"
 
-static inline void binaryprint(unsigned char a) {
+static inline void byte_print(unsigned char a) {
     char s[9];
     itoa((int)a, s, 2);
     printf("%s\n", s);
@@ -15,7 +15,7 @@ static inline void binaryprint(unsigned char a) {
 #ifdef __PRINT_DEBUG__
 
 #define deep_print(format,...) printf(format, ##__VA_ARGS__)
-#define bin_print(a) binaryprint(a)
+#define bin_print(a) byte_print(a)
 
 #else
 
@@ -210,7 +210,6 @@ form_path(lua_State *L, int last, struct map *m) {
 #endif
         x = pos % w;
         y = pos / w;
-        deep_print("jump path = %d %d\n", x, y);
         lua_newtable(L);
         lua_pushinteger(L, x);
         lua_rawseti(L, -2, 1);
@@ -247,13 +246,10 @@ static int dir_is_diagonal(unsigned char dir)
 
 static unsigned char calc_dir(int from, int to, int w) {
     if (from == -1) {
-        deep_print("from to w = %d %d %d\n", from, to, w);
         return NO_DIRECTION;
     } else {
         int fx = from % w, fy = from / w;
         int tx = to % w, ty = to / w;
-        deep_print("111 from to w = %d %d %d\n", from, to, w);
-        deep_print("222 = %d %d %d %d\n", fx, fy, tx, ty);
         if (fx == tx && fy > ty) {
             return 0;
         } else if (fx == tx && fy < ty) {
@@ -272,7 +268,6 @@ static unsigned char calc_dir(int from, int to, int w) {
             return 5;
         } else {
             // error path
-            deep_print("error from to w = %d %d %d\n", from, to, w);
             return NO_DIRECTION;
         }
     }
@@ -416,29 +411,23 @@ static int jump(int end, int pos, unsigned char dir, struct map *m) {
     int w = m->width;
     int h = m->height;
     int next_pos = get_next_pos(pos, dir, w, h);
-    deep_print("^^^^^^^ get next pos = %d %d   %d   %d %d\n", pos % w, pos / w, dir, next_pos %w, next_pos / w);
     if (!map_walkable(next_pos, w * h, m)) {
-        deep_print("not walk = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return -1;
     }
     if (next_pos == end) {
-        deep_print("jump end = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return next_pos;
     }
     if (force_dir(next_pos, dir, m) != EMPTY_DIRECTIONSET) {
-        deep_print("force dir = %d %d %d\n", next_pos % w, next_pos / w, dir);
         return next_pos;
     }
     if (dir_is_diagonal(dir)) { // diagonal dir explore first check straight dir
         int i;
         i = jump(end, next_pos, (dir + 7) % 8, m);
         if (i > -1) {
-            deep_print("jump found 7 = %d %d %d\n", next_pos % w, next_pos / w, dir);
             return next_pos;
         }
         i = jump(end, next_pos, (dir + 1) % 8, m);
         if (i > -1) {
-            deep_print("jump found 1 = %d %d %d\n", next_pos % w, next_pos / w, dir);
             return next_pos;
         }
     }
@@ -467,54 +456,35 @@ find_path(lua_State *L) {
     struct heap *open_set = fibheap_init(len, compare);
     struct node_data *node = construct(m, m->start, 0);
     m->open_set_map[m->start] = fibheap_insert(open_set, node);;
-    deep_print("put in open set point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
     while ((node = fibheap_pop(open_set))) {
         m->open_set_map[node->pos] = NULL;
         BITSET(m->m, len + node->pos);
-        deep_print("==================check new jump point: %d %d %d %d\n", node->pos % m->width, node->pos / m->width, node->g_value, node->f_value);
         if (node->pos == m->end) {
             fibheap_destroy(open_set);
             return form_path(L, node->pos, m);
         }
         unsigned char cur_dir = calc_dir(m->comefrom[node->pos], node->pos, m->width);
-        deep_print("--aaaa come pos %d %d   %d %d  %d\n", m->comefrom[node->pos] % m->width,
-            m->comefrom[node->pos] / m->width, node->pos % m->width, node->pos / m->width, cur_dir);
         unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
-        deep_print("-----))))))))))-nodes x, y, cur_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, cur_dir);
-        bin_print(check_dirs);
         unsigned char dir = next_dir(&check_dirs);
-        deep_print("-----))))))))))-nodee x, y, dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
-        bin_print(check_dirs);
         while (dir != NO_DIRECTION) {
             int new_jump_point = jump(m->end, node->pos, dir, m);
-            deep_print("------check dir = %d %d %d %d %d\n", node->pos % m->width, node->pos / m->width, dir, new_jump_point % m->width, new_jump_point / m->width);
             if (new_jump_point != -1 && !BITTEST(m->m, len + new_jump_point)) {
                 int ng_value = node->g_value + dist(new_jump_point, node->pos, m->width);
                 struct heap_node *p = m->open_set_map[new_jump_point];
                 if (!p) {
-                    deep_print("come1: %d %d =  %d %d\n", new_jump_point % m->width, new_jump_point / m->width, node->pos % m->width, node->pos / m->width);
                     m->comefrom[new_jump_point] = node->pos;
                     struct node_data *test = construct(m, new_jump_point, ng_value);
                     m->open_set_map[new_jump_point] = fibheap_insert(open_set, test);
-                    deep_print("found jump point: %d %d\n", new_jump_point % m->width, new_jump_point / m->width);
-                    deep_print("put in open set point: %d %d %d %d\n", new_jump_point % m->width, new_jump_point / m->width, test->g_value, test->f_value);
                 } else if (p->data->g_value > ng_value) {
-                    deep_print("come2: %d %d =  %d %d\n", new_jump_point % m->width, new_jump_point / m->width, node->pos % m->width, node->pos / m->width);
                     m->comefrom[new_jump_point] = node->pos;
                     p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
                     p->data->g_value = ng_value;
                     fibheap_decrease(open_set, p);
                 }
             }
-            deep_print("-----))))))))))-dirnode1 x, y, cur_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
-            bin_print(check_dirs);
             dir = next_dir(&check_dirs);
-            deep_print("-----))))))))))-dirnode2 x, y, next_dir = %d %d %d\n", node->pos % m->width, node->pos / m->width, dir);
-            bin_print(check_dirs);
         }
     }
-    deep_print("no found path\n");
-
     fibheap_destroy(open_set);
     return 0;
 }
@@ -630,7 +600,6 @@ dump(lua_State *L) {
 
 static int
 gc(lua_State *L) {
-    deep_print("may be something need to free\n");
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
     free(m->open_set_map);
