@@ -30,9 +30,9 @@ https://runzhiwang.github.io/2019/06/21/jps/
 
 ~~1. mark_connected first to avoid unreachable point like astar.lua~~
 
-~~2. use bit calc to speed up jump point finding~~
+2. use bit calc to speed up jump point finding
 
-~~3. mem use optimize~~
+3. mem use optimize
 
 4. prune mid jump point
 
