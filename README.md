@@ -32,6 +32,10 @@ https://runzhiwang.github.io/2019/06/21/jps/
 
 2. use bit calc to speed up jump point finding
 
+```c
+__builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
+```
+
 3. mem use optimize
 
 4. prune mid jump point
