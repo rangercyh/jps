@@ -475,6 +475,9 @@ find_path(lua_State *L) {
                     m->comefrom[new_jump_point] = node->pos;
                     struct node_data *test = construct(m, new_jump_point, ng_value);
                     m->open_set_map[new_jump_point] = fibheap_insert(open_set, test);
+                    if (new_jump_point == m->end) {
+                        break;
+                    }
                 } else if (p->data->g_value > ng_value) {
                     m->comefrom[new_jump_point] = node->pos;
                     p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
