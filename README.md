@@ -38,7 +38,7 @@ __builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
 
 3. mem use optimize
 
-4. prune mid jump point
+~~4. prune mid jump point~~
 
 5. final path optimize
 
@@ -90,3 +90,13 @@ j:dump()                // print map, if make with CFLAG="-D__RECORD_PATH__", it
 ## 10000 times path finding with -D__CONNER_SOLVE__
 
 ![](https://github.com/rangercyh/path_finding/blob/master/screenshots/2.jpg)
+
+# mid jump point prune almost doubled performace
+
+## 10000 times path finding with mid jump point prune
+
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/5.jpg)
+
+## 10000 times path finding  with mid jump point prune with -D__CONNER_SOLVE__
+
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/6.jpg)

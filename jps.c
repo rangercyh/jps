@@ -186,12 +186,48 @@ static int dist(int one, int two, int w) {
     }
 }
 
-static struct node_data *construct(struct map *m, int pos, int g_value) {
+static struct node_data *construct(struct map *m, int pos, int g_value,
+            unsigned char dir) {
     struct node_data *node = (struct node_data *)malloc(sizeof(struct node_data));
     node->pos = pos;
     node->g_value = g_value;
     node->f_value = g_value + dist(m->end, pos, m->width);
+    node->dir = dir;
     return node;
+}
+
+static inline void push_table_to_stack(lua_State *L, int x, int y, int num) {
+    lua_newtable(L);
+    lua_pushinteger(L, x);
+    lua_rawseti(L, -2, 1);
+    lua_pushinteger(L, y);
+    lua_rawseti(L, -2, 2);
+    lua_rawseti(L, -2, num);
+}
+
+static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
+            int father, int w, int num) {
+    int dx = cur % w - father % w;
+    int dy = cur / w - father / w;
+    if (dx == 0 || dy == 0) {
+        return 0;
+    }
+    if (dx < 0) {
+        dx = -dx;
+    }
+    if (dy < 0) {
+        dy = -dy;
+    }
+    int span = dx;
+    if (dy < dx) {
+        span = dy;
+    }
+#ifdef __RECORD_PATH__
+    int len = m->width * m->height;
+    BITSET(m->m, len * 2 + father + span * (w + 1));
+#endif
+    push_table_to_stack(L, father % w + span, father / w + span, num + 1);
+    return 1;
 }
 
 static int
@@ -210,12 +246,8 @@ form_path(lua_State *L, int last, struct map *m) {
 #endif
         x = pos % w;
         y = pos / w;
-        lua_newtable(L);
-        lua_pushinteger(L, x);
-        lua_rawseti(L, -2, 1);
-        lua_pushinteger(L, y);
-        lua_rawseti(L, -2, 2);
-        lua_rawseti(L, -2, ++num);
+        push_table_to_stack(L, x, y, ++num);
+        num += insert_mid_jump_point(L, m, pos, m->comefrom[pos], w, num);
         pos = m->comefrom[pos];
     }
     return 1;
@@ -242,35 +274,6 @@ static void dir_add(unsigned char *dirs, unsigned char dir)
 static int dir_is_diagonal(unsigned char dir)
 {
     return (dir % 2) != 0;
-}
-
-static unsigned char calc_dir(int from, int to, int w) {
-    if (from == -1) {
-        return NO_DIRECTION;
-    } else {
-        int fx = from % w, fy = from / w;
-        int tx = to % w, ty = to / w;
-        if (fx == tx && fy > ty) {
-            return 0;
-        } else if (fx == tx && fy < ty) {
-            return 4;
-        } else if (fx > tx && fy == ty) {
-            return 6;
-        } else if (fx < tx && fy == ty) {
-            return 2;
-        } else if (fx < tx && fy > ty) {
-            return 1;
-        } else if (fx < tx && fy < ty) {
-            return 3;
-        } else if (fx > tx && fy > ty) {
-            return 7;
-        } else if (fx > tx && fy < ty) {
-            return 5;
-        } else {
-            // error path
-            return NO_DIRECTION;
-        }
-    }
 }
 
 static inline int
@@ -407,31 +410,76 @@ static unsigned char next_dir(unsigned char *dirs) {
     return NO_DIRECTION;
 }
 
-static int jump(int end, int pos, unsigned char dir, struct map *m) {
+static void put_in_open_set(struct heap *open_set, struct map *m, int pos,
+            int len, struct node_data *node, unsigned char dir) {
+    if (!BITTEST(m->m, len + pos)) {
+        int ng_value = node->g_value + dist(pos, node->pos, m->width);
+        struct heap_node *p = m->open_set_map[pos];
+        if (!p) {
+            m->comefrom[pos] = node->pos;
+            struct node_data *test = construct(m, pos, ng_value, dir);
+            m->open_set_map[pos] = fibheap_insert(open_set, test);
+        } else if (p->data->g_value > ng_value) {
+            m->comefrom[pos] = node->pos;
+            p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
+            p->data->g_value = ng_value;
+            p->data->dir = dir;
+            fibheap_decrease(open_set, p);
+        }
+    }
+}
+
+#ifdef __CONNER_SOLVE__
+static int diagonal_obs(struct map *m, int pos, int new_pos, unsigned char dir) {
+    switch (dir) {
+        case 1:
+            return BITTEST(m->m, pos + 1) || BITTEST(m->m, new_pos - 1);
+        case 3:
+            return BITTEST(m->m, pos + 1) || BITTEST(m->m, new_pos - 1);
+        case 5:
+            return BITTEST(m->m, pos - 1) || BITTEST(m->m, new_pos + 1);
+        case 7:
+            return BITTEST(m->m, pos - 1) || BITTEST(m->m, new_pos + 1);
+        default: return 0;
+    }
+    return 0;
+}
+#endif
+
+static int jump_prune(struct heap *open_set, int end, int pos, unsigned char dir,
+            struct map *m, struct node_data *node) {
     int w = m->width;
     int h = m->height;
+    int len = w * h;
     int next_pos = get_next_pos(pos, dir, w, h);
-    if (!map_walkable(next_pos, w * h, m)) {
-        return -1;
+    if (!map_walkable(next_pos, len, m)) {
+        return 0;
     }
+#ifdef __CONNER_SOLVE__
+    if (dir_is_diagonal(dir) && diagonal_obs(m, pos, next_pos, dir)) { // conner solve diagonal stop by obs
+        return 0;
+    }
+#endif
     if (next_pos == end) {
-        return next_pos;
+        put_in_open_set(open_set, m, next_pos, len, node, dir);
+        return 1;
     }
     if (force_dir(next_pos, dir, m) != EMPTY_DIRECTIONSET) {
-        return next_pos;
+        put_in_open_set(open_set, m, next_pos, len, node, dir);
+        return 0;
     }
-    if (dir_is_diagonal(dir)) { // diagonal dir explore first check straight dir
+    if (dir_is_diagonal(dir)) {
         int i;
-        i = jump(end, next_pos, (dir + 7) % 8, m);
-        if (i > -1) {
-            return next_pos;
+        i = jump_prune(open_set, end, next_pos, (dir + 7) % 8, m, node);
+        if (i == 1) {
+            return 1;
         }
-        i = jump(end, next_pos, (dir + 1) % 8, m);
-        if (i > -1) {
-            return next_pos;
+        i = jump_prune(open_set, end, next_pos, (dir + 1) % 8, m, node);
+        if (i == 1) {
+            return 1;
         }
     }
-    return jump(end, next_pos, dir, m);
+    return jump_prune(open_set, end, next_pos, dir, m, node);
 }
 
 static int
@@ -454,7 +502,7 @@ find_path(lua_State *L) {
         return 0;
     }
     struct heap *open_set = fibheap_init(len, compare);
-    struct node_data *node = construct(m, m->start, 0);
+    struct node_data *node = construct(m, m->start, 0, NO_DIRECTION);
     m->open_set_map[m->start] = fibheap_insert(open_set, node);;
     while ((node = fibheap_pop(open_set))) {
         m->open_set_map[node->pos] = NULL;
@@ -463,27 +511,12 @@ find_path(lua_State *L) {
             fibheap_destroy(open_set);
             return form_path(L, node->pos, m);
         }
-        unsigned char cur_dir = calc_dir(m->comefrom[node->pos], node->pos, m->width);
+        unsigned char cur_dir = node->dir;
         unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
         unsigned char dir = next_dir(&check_dirs);
         while (dir != NO_DIRECTION) {
-            int new_jump_point = jump(m->end, node->pos, dir, m);
-            if (new_jump_point != -1 && !BITTEST(m->m, len + new_jump_point)) {
-                int ng_value = node->g_value + dist(new_jump_point, node->pos, m->width);
-                struct heap_node *p = m->open_set_map[new_jump_point];
-                if (!p) {
-                    m->comefrom[new_jump_point] = node->pos;
-                    struct node_data *test = construct(m, new_jump_point, ng_value);
-                    m->open_set_map[new_jump_point] = fibheap_insert(open_set, test);
-                    if (new_jump_point == m->end) {
-                        break;
-                    }
-                } else if (p->data->g_value > ng_value) {
-                    m->comefrom[new_jump_point] = node->pos;
-                    p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
-                    p->data->g_value = ng_value;
-                    fibheap_decrease(open_set, p);
-                }
+            if (jump_prune(open_set, m->end, node->pos, dir, m, node) == 1) { // found end
+                break;
             }
             dir = next_dir(&check_dirs);
         }

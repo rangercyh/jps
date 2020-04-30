@@ -6,6 +6,7 @@ struct node_data
     int pos;
     int g_value;
     int f_value;
+    unsigned char dir;
 };
 
 struct heap_node {
