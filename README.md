@@ -78,7 +78,7 @@ j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it
 
 ## map dump
 
-![](https://github.com/rangercyh/path_finding/blob/master/screenshots/4.jpg)
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/7.jpg)
 
 ## mark connected
 
