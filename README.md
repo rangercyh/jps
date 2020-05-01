@@ -82,6 +82,7 @@ j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it
 
 ## mark connected
 
+![](https://github.com/rangercyh/path_finding/blob/master/screenshots/4.jpg)
 ![](https://github.com/rangercyh/path_finding/blob/master/screenshots/3.jpg)
 
 ## 10000 times path finding
