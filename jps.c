@@ -218,15 +218,32 @@ static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
     if (dy < 0) {
         dy = -dy;
     }
+    if (dx == dy) {
+        return 0;
+    }
     int span = dx;
     if (dy < dx) {
         span = dy;
     }
+    int mx, my;
+    if (cur % w < father % w && cur / w < father / w) {
+        mx = father % w - span;
+        my = father / w - span;
+    } else if (cur % w < father % w && cur / w > father / w) {
+        mx = father % w - span;
+        my = father / w + span;
+    } else if (cur % w > father % w && cur / w < father / w) {
+        mx = father % w + span;
+        my = father / w - span;
+    } else if (cur % w > father % w && cur / w > father / w) {
+        mx = father % w + span;
+        my = father / w + span;
+    }
 #ifdef __RECORD_PATH__
     int len = m->width * m->height;
-    BITSET(m->m, len * 2 + father + span * (w + 1));
+    BITSET(m->m, len * 2 + mx + my * w);
 #endif
-    push_table_to_stack(L, father % w + span, father / w + span, num + 1);
+    push_table_to_stack(L, mx, my, num + 1);
     return 1;
 }
 
