@@ -46,7 +46,6 @@ __builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
 
 ```lua
 local jps = require "jps"
-local jps = require "jps"
 local j = jps.new({     -- create 2D grid map
     w = 20,             -- width of map
     h = 20,             -- height of map
