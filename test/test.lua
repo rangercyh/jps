@@ -67,7 +67,6 @@ print('cost time:', cost_time * 1000, 'ms')
 -- [====[
 local jps = require "jps"
 local t1 = os.clock()
-local jps = require "jps"
 local j = jps.new({     -- create 2D grid map
     w = 20,             -- width of map
     h = 20,             -- height of map

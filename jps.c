@@ -6,22 +6,10 @@
 #include <limits.h>
 #include "fibheap.h"
 
-static inline void byte_print(unsigned char a) {
-    char s[9];
-    itoa((int)a, s, 2);
-    printf("%s\n", s);
-}
-
 #ifdef __PRINT_DEBUG__
-
 #define deep_print(format,...) printf(format, ##__VA_ARGS__)
-#define bin_print(a) byte_print(a)
-
 #else
-
 #define deep_print(format,...)
-#define bin_print(a)
-
 #endif
 
 #define MT_NAME ("_jps_search_metatable")
@@ -225,7 +213,7 @@ static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
     if (dy < dx) {
         span = dy;
     }
-    int mx, my;
+    int mx = 0, my = 0;
     if (cur % w < father % w && cur / w < father / w) {
         mx = father % w - span;
         my = father / w - span;

@@ -1,14 +1,22 @@
-all : jps.dll
+.PHONY: all test clean
 
-LUA_INCLUDE = ./include
-LUA_LIB = ./ -llua53
+TOP=.
+
+all: jps.so
+
+LUA_BIN = /usr/local/bin/lua
 
 CFLAGS = $(CFLAG)
-CFLAGS += -g -Wall --shared -I$(LUA_INCLUDE)
-LDFLAGS = -L$(LUA_LIB)
+CFLAGS += -g3 -O2 -rdynamic -Wall -fPIC -shared
 
-jps.dll : jps.c fibheap.c
-	gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)
+jps.so: jps.c fibheap.c
+	gcc $(CFLAGS) -o $@ $^
 
-clean :
-	rm jps.dll
+clean:
+	rm jps.so
+
+export LUA_CPATH=$(TOP)/?.so
+export LUA_PATH=$(TOP)/test/?.lua
+
+test:
+	$(LUA_BIN) test/test.lua
