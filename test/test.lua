@@ -107,7 +107,7 @@ for i = 1, 10000 do
     j:find_path()
 end
 j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
-print('cost time:', os.clock() - t1, 'ms')
+print('cost time:', os.clock() - t1, 's')
 -- ]====]
 local j1 = jps.new({
     w = 10,
