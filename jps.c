@@ -530,22 +530,32 @@ find_path(lua_State *L) {
     return 0;
 }
 
-static void flood_mark(struct map *m, int *visited, int pos, int connected_num, int limit) {
+static void flood_mark(struct map *m, char *visited, int pos, int connected_num,
+        int limit, int *queue) {
     if (visited[pos]) {
         return;
     }
-    visited[pos] = 1;
-    m->connected[pos] = connected_num;
-#define FLOOD(n) do { \
+    memset(queue, 0, limit * sizeof(int));
+    int pop_i = 0, push_i = 0;
+    queue[push_i++] = pos;
+#define CHECK_POS(n) do { \
     if (check_in_map_pos(n, limit) && !BITTEST(m->m, n)) { \
-        flood_mark(m, visited, n, connected_num, limit); \
+        if (!visited[n]) { \
+            visited[n] = 1; \
+            m->connected[n] = connected_num; \
+            queue[push_i++] = n; \
+        } \
     } \
 } while(0);
-    FLOOD(pos - 1);
-    FLOOD(pos + 1);
-    FLOOD(pos - m->width);
-    FLOOD(pos + m->width);
-#undef FLOOD
+    int cur;
+    while (pop_i < push_i) {
+        cur = queue[pop_i++];
+        CHECK_POS(cur - 1);
+        CHECK_POS(cur + 1);
+        CHECK_POS(cur - m->width);
+        CHECK_POS(cur + m->width);
+    }
+#undef CHECK_POS
 }
 
 static int mark_connected(lua_State *L) {
@@ -557,13 +567,13 @@ static int mark_connected(lua_State *L) {
     }
     memset(m->connected, 0, len * sizeof(int));
     int i, connected_num = 0;
-    int limit = m->width * m->height;
-    int visited[len];
-    memset(visited, 0, len * sizeof(int));
+    char visited[len];
+    int queue[len];
+    memset(visited, 0, len * sizeof(char));
     for (i = 0; i < len; i++) {
         if (!visited[i] && !BITTEST(m->m, i)) {
             connected_num++;
-            flood_mark(m, visited, i, connected_num, limit);
+            flood_mark(m, visited, i, connected_num, len, queue);
         }
     }
     return 0;
