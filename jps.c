@@ -26,8 +26,13 @@ struct map {
     int start;
     int end;
     int *comefrom;
+
+//  for mark connected
     char mark_connected;
     int *connected;
+    int *queue;
+    char *visited;
+
     struct heap_node **open_set_map;
 /*
     [map] | [close_set] | [path]
@@ -71,6 +76,7 @@ add_block(lua_State *L) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     BITSET(m->m, m->width * y + x);
+    m->mark_connected = 0;
     return 0;
 }
 
@@ -89,6 +95,7 @@ add_blockset(lua_State *L) {
         lua_pop(L, 3);
         ++i;
     }
+    m->mark_connected = 0;
     return 0;
 }
 
@@ -101,6 +108,7 @@ clear_block(lua_State *L) {
         luaL_error(L, "Position (%d,%d) is out of map", x, y);
     }
     BITCLEAR(m->m, m->width * y + x);
+    m->mark_connected = 0;
     return 0;
 }
 
@@ -111,6 +119,7 @@ clear_allblock(lua_State *L) {
     for (i = 0; i < m->width * m->height; i++) {
         BITCLEAR(m->m, i);
     }
+    m->mark_connected = 0;
     return 0;
 }
 
@@ -530,14 +539,18 @@ find_path(lua_State *L) {
     return 0;
 }
 
-static void flood_mark(struct map *m, char *visited, int pos, int connected_num,
-        int limit, int *queue) {
+static void flood_mark(struct map *m, int pos, int connected_num, int limit) {
+    char *visited = m->visited;
     if (visited[pos]) {
         return;
     }
+    int *queue = m->queue;
     memset(queue, 0, limit * sizeof(int));
     int pop_i = 0, push_i = 0;
+    visited[pos] = 1;
+    m->connected[pos] = connected_num;
     queue[push_i++] = pos;
+
 #define CHECK_POS(n) do { \
     if (check_in_map_pos(n, limit) && !BITTEST(m->m, n)) { \
         if (!visited[n]) { \
@@ -560,20 +573,16 @@ static void flood_mark(struct map *m, char *visited, int pos, int connected_num,
 
 static int mark_connected(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    int len = m->width * m->height;
     if (!m->mark_connected) {
-        m->connected = (int *)malloc(len * sizeof(int));
         m->mark_connected = 1;
-    }
-    memset(m->connected, 0, len * sizeof(int));
-    int i, connected_num = 0;
-    char *visited = (char *)malloc(len * sizeof(char));
-    int *queue = (int *)malloc(len * sizeof(int));
-    memset(visited, 0, len * sizeof(char));
-    for (i = 0; i < len; i++) {
-        if (!visited[i] && !BITTEST(m->m, i)) {
-            connected_num++;
-            flood_mark(m, visited, i, connected_num, len, queue);
+        int len = m->width * m->height;
+        memset(m->connected, 0, len * sizeof(int));
+        memset(m->visited, 0, len * sizeof(char));
+        int i, connected_num = 0;
+        for (i = 0; i < len; i++) {
+            if (!m->visited[i] && !BITTEST(m->m, i)) {
+                flood_mark(m, i, ++connected_num, len);
+            }
         }
     }
     return 0;
@@ -654,9 +663,9 @@ gc(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
     free(m->open_set_map);
-    if (m->mark_connected) {
-        free(m->connected);
-    }
+    free(m->connected);
+    free(m->queue);
+    free(m->visited);
     return 0;
 }
 
@@ -704,6 +713,9 @@ lnewmap(lua_State *L) {
     m->start = -1;
     m->end = -1;
     m->mark_connected = 0;
+    m->connected = (int *)malloc(len * sizeof(int));
+    m->queue = (int *)malloc(len * sizeof(int));
+    m->visited = (char *)malloc(len * sizeof(char));
     m->comefrom = (int *)malloc(len * sizeof(int));
     m->open_set_map = (struct heap_node **)malloc(len * sizeof(struct heap_node *));
     memset(m->m, 0, map_men_len * sizeof(m->m[0]));
