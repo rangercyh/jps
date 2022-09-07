@@ -496,49 +496,6 @@ static int jump_prune(struct heap *open_set, int end, int pos, unsigned char dir
     return jump_prune(open_set, end, next_pos, dir, m, node);
 }
 
-static int
-find_path(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    if (BITTEST(m->m, m->start)) {
-        luaL_error(L, "start pos(%d,%d) is in block", m->start % m->width, m->start / m->width);
-    }
-    if (BITTEST(m->m, m->end)) {
-        luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
-    }
-    int len = m->width * m->height;
-    memset(&m->m[BITSLOT(len) + 1], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
-    memset(m->comefrom, -1, len * sizeof(int));
-    memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
-    if (m->start == m->end) {
-        return form_path(L, m->end, m);
-    }
-    if (m->mark_connected && (m->connected[m->start] != m->connected[m->end])) {
-        return 0;
-    }
-    struct heap *open_set = fibheap_init(len, compare);
-    struct node_data *node = construct(m, m->start, 0, NO_DIRECTION);
-    m->open_set_map[m->start] = fibheap_insert(open_set, node);;
-    while ((node = fibheap_pop(open_set))) {
-        m->open_set_map[node->pos] = NULL;
-        BITSET(m->m, (BITSLOT(len) + 1) * CHAR_BIT + node->pos);
-        if (node->pos == m->end) {
-            fibheap_destroy(open_set);
-            return form_path(L, node->pos, m);
-        }
-        unsigned char cur_dir = node->dir;
-        unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
-        unsigned char dir = next_dir(&check_dirs);
-        while (dir != NO_DIRECTION) {
-            if (jump_prune(open_set, m->end, node->pos, dir, m, node) == 1) { // found end
-                break;
-            }
-            dir = next_dir(&check_dirs);
-        }
-    }
-    fibheap_destroy(open_set);
-    return 0;
-}
-
 static void flood_mark(struct map *m, int pos, int connected_num, int limit) {
     char *visited = m->visited;
     if (visited[pos]) {
@@ -585,6 +542,52 @@ static int mark_connected(lua_State *L) {
             }
         }
     }
+    return 0;
+}
+
+static int
+find_path(lua_State *L) {
+    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+    if (BITTEST(m->m, m->start)) {
+        luaL_error(L, "start pos(%d,%d) is in block", m->start % m->width, m->start / m->width);
+    }
+    if (BITTEST(m->m, m->end)) {
+        luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
+    }
+    int len = m->width * m->height;
+    memset(&m->m[BITSLOT(len) + 1], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+    memset(m->comefrom, -1, len * sizeof(int));
+    memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
+    if (m->start == m->end) {
+        return form_path(L, m->end, m);
+    }
+    if (!m->mark_connected) {
+        mark_connected(L);
+    }
+    if (m->connected[m->start] != m->connected[m->end]) {
+        return 0;
+    }
+    struct heap *open_set = fibheap_init(len, compare);
+    struct node_data *node = construct(m, m->start, 0, NO_DIRECTION);
+    m->open_set_map[m->start] = fibheap_insert(open_set, node);;
+    while ((node = fibheap_pop(open_set))) {
+        m->open_set_map[node->pos] = NULL;
+        BITSET(m->m, (BITSLOT(len) + 1) * CHAR_BIT + node->pos);
+        if (node->pos == m->end) {
+            fibheap_destroy(open_set);
+            return form_path(L, node->pos, m);
+        }
+        unsigned char cur_dir = node->dir;
+        unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
+        unsigned char dir = next_dir(&check_dirs);
+        while (dir != NO_DIRECTION) {
+            if (jump_prune(open_set, m->end, node->pos, dir, m, node) == 1) { // found end
+                break;
+            }
+            dir = next_dir(&check_dirs);
+        }
+    }
+    fibheap_destroy(open_set);
     return 0;
 }
 

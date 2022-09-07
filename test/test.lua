@@ -174,9 +174,16 @@ end
 j3:add_block(3, 5)
 
 j3:set_end(5,5)
-j3:mark_connected()
+j3:add_block(3, 5)
 local path = j3:find_path()
 j3:dump()
+j3:dump_connected()
+j3:add_block(3, 5)
+j3:dump_connected()
+local path = j3:find_path()
+j3:dump_connected()
 for k, v in ipairs(path) do
     print(k, v[1], v[2])
 end
+
+
