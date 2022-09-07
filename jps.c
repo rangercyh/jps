@@ -567,8 +567,8 @@ static int mark_connected(lua_State *L) {
     }
     memset(m->connected, 0, len * sizeof(int));
     int i, connected_num = 0;
-    char visited[len];
-    int queue[len];
+    char *visited = (char *)malloc(len * sizeof(char));
+    int *queue = (int *)malloc(len * sizeof(int));
     memset(visited, 0, len * sizeof(char));
     for (i = 0; i < len; i++) {
         if (!visited[i] && !BITTEST(m->m, i)) {
