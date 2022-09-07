@@ -6,6 +6,10 @@ http://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-aaai11.pdf
 ## if you prefer to avoid across conner diagonal grid:
 
     make CFLAG="-D__CONNER_SOLVE__"
+    
+## if you prefer to see all the detail and avoid across conner diagonal grid:
+
+    make CFLAG="-D__CONNER_SOLVE__ -D__RECORD_PATH__ -D__PRINT_DEBUG__"
 
 # CFLAG explain
 
