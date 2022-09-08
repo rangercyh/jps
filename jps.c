@@ -7,9 +7,9 @@
 #include "fibheap.h"
 
 #ifdef __PRINT_DEBUG__
-#define deep_print(format,...) printf(format, ##__VA_ARGS__)
+#define print(format,...) printf(format, ##__VA_ARGS__)
 #else
-#define deep_print(format,...)
+#define print(format,...)
 #endif
 
 #define MT_NAME ("_jps_search_metatable")
@@ -280,12 +280,12 @@ form_path(lua_State *L, int last, struct map *m) {
    5  4  3
 */
 
-static void dir_add(unsigned char *dirs, unsigned char dir)
+static inline void dir_add(unsigned char *dirs, unsigned char dir)
 {
     *dirs |= (1 << dir);
 }
 
-static int dir_is_diagonal(unsigned char dir)
+static inline int dir_is_diagonal(unsigned char dir)
 {
     return (dir % 2) != 0;
 }
