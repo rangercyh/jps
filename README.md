@@ -1,50 +1,7 @@
 # jps
-http://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-aaai11.pdf
+luabinding for jps
 
-## if you prefer to across conner diagonal grid then just make.
-
-## if you prefer to avoid across conner diagonal grid:
-
-    make CFLAG="-D__CONNER_SOLVE__"
-    
-## if you prefer to see all the detail and avoid across conner diagonal grid:
-
-    make CFLAG="-D__CONNER_SOLVE__ -D__RECORD_PATH__ -D__PRINT_DEBUG__"
-
-# CFLAG explain
-
-avoid entry conner barriers
-
-    make CFLAG="-D__CONNER_SOLVE__"
-
-record path in dump
-
-    make CFLAG="-D__RECORD_PATH__"
-
-print detail search
-
-    make CFLAG="-D__PRINT_DEBUG__"
-
-# to do
-
-https://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-icaps14.pdf
-
-https://runzhiwang.github.io/2019/06/21/jps/
-
-
-~~1. mark_connected first to avoid unreachable point like astar.lua~~
-
-2. use bit calc to speed up jump point finding
-
-```c
-__builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
-```
-
-3. mem use optimize
-
-~~4. prune mid jump point~~
-
-5. final path optimize
+see the algorithm article for detail: http://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-aaai11.pdf
 
 # how to use
 
@@ -69,7 +26,7 @@ j:add_blockset({        -- batch set obstacle points
 })
 j:clear_block(1,1)      -- clear one obstacle point
 j:clear_allblock()      -- clear all obstacle
-j:mark_connected()      -- mark map connected for speed up search path to unreachable point
+j:mark_connected()      -- mark map connected for speed up search path to unreachable point(now auto done by find_path)
 j:dump_connected()      -- print connected mark of map
 --[[
     search for path from start to end, return the jump points list in table
@@ -78,6 +35,53 @@ j:dump_connected()      -- print connected mark of map
 local path = j:find_path()
 j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
 ```
+
+
+# CFLAG explain
+
+avoid entry conner barriers
+
+    make CFLAG="-D__CONNER_SOLVE__"
+
+record path in dump
+
+    make CFLAG="-D__RECORD_PATH__"
+
+print detail search
+
+    make CFLAG="-D__PRINT_DEBUG__"
+
+## if you prefer to across conner diagonal grid then just make.
+
+## if you prefer to avoid across conner diagonal grid:
+
+    make CFLAG="-D__CONNER_SOLVE__"
+    
+## if you prefer to see all the detail and avoid across conner diagonal grid:
+
+    make CFLAG="-D__CONNER_SOLVE__ -D__RECORD_PATH__ -D__PRINT_DEBUG__"
+
+# to do
+
+https://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-icaps14.pdf
+
+https://runzhiwang.github.io/2019/06/21/jps/
+
+
+~~1. mark_connected first to avoid unreachable point like astar.lua~~
+
+2. use bit calc to speed up jump point finding
+
+```c
+__builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
+```
+
+3. mem use optimize
+
+~~4. prune mid jump point~~
+
+5. final path optimize
+
 
 ## map dump
 
