@@ -2,6 +2,7 @@
 luabinding for jps
 
 see the Daniel Harabor's blog for detail: https://harablog.wordpress.com/2011/09/07/jump-point-search/
+
 see the algorithm article for detail: http://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-aaai11.pdf
 
 # how to use
