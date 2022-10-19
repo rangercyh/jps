@@ -186,4 +186,15 @@ for k, v in ipairs(path) do
     print(k, v[1], v[2])
 end
 
+local j4 = jps.new({ w = 20, h = 20 })
+local l1, l2 = 5, 15
+for i = 0, 19 do
+    j4:add_block(i, l1)
+    j4:add_block(i, l2)
+    j4:add_block(l1, i)
+    j4:add_block(l2, i)
+end
+j4:mark_connected()
+j4:dump_connected()
+
 
