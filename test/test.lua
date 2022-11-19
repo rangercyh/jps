@@ -105,7 +105,7 @@ j:dump_connected()      -- print connected mark of map
 ]]
 j:dump()
 for i = 1, 10000 do
-    j:find_path(2)
+    j:find_path()
 end
 j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
 print('cost time:', os.clock() - t1, 's')
@@ -120,7 +120,7 @@ local j1 = jps.new({
 j1:set_start(0,5)
 j1:set_end(3,0)
 j1:mark_connected()
-j1:find_path(2)
+j1:find_path()
 j1:dump()
 local j2 = jps.new({
     w = 10,
@@ -144,7 +144,7 @@ for i = 0, 8 do
 end
 j2:set_end(9,9)
 j2:mark_connected()
-j2:find_path(2)
+j2:find_path()
 j2:dump()
 local j3 = jps.new({
     w = 10,
@@ -176,12 +176,12 @@ j3:add_block(3, 5)
 
 j3:set_end(5,5)
 j3:add_block(3, 5)
-local path = j3:find_path(2)
+local path = j3:find_path()
 j3:dump()
 j3:dump_connected()
 j3:add_block(3, 5)
 j3:dump_connected()
-local path = j3:find_path(2)
+local path = j3:find_path()
 j3:dump_connected()
 for k, v in ipairs(path) do
     print(k, v[1], v[2])
@@ -234,7 +234,7 @@ local t1 = os.clock()
 nav:set_start(1, 1)
 nav:set_end(18, 18)
 for i = 1, 1 do
-    local cpath = nav:find_path(2)
+    local cpath = nav:find_path()
 end
 nav:dump()
 print('cost time:', os.clock() - t1, 's')
