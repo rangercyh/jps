@@ -32,7 +32,7 @@ j:mark_connected()      -- mark map connected for speed up search path to unreac
 j:dump_connected()      -- print connected mark of map
 --[[
     find_path(path_type) : search for path from start to end, return the jump points list in table
-    path_type:
+    path_type: default 1
     OBS_CONNER_OK = 1 : the path can across conner diagonal grid
     OBS_CONNER_AVOID = 2 : avoid across conner diagonal grid
 ]]
