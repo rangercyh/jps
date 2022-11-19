@@ -31,37 +31,17 @@ j:clear_allblock()      -- clear all obstacle
 j:mark_connected()      -- mark map connected for speed up search path to unreachable point(now auto done by find_path)
 j:dump_connected()      -- print connected mark of map
 --[[
-    search for path from start to end, return the jump points list in table
-    if make with CFLAG="-D__CONNER_SOLVE__", it will avoid across conner diagonal grid
+    find_path(path_type) : search for path from start to end, return the jump points list in table
+    path_type:
+    OBS_CONNER_OK = 1 : the path can across conner diagonal grid
+    OBS_CONNER_AVOID = 2 : avoid across conner diagonal grid
 ]]
-local path = j:find_path()
-j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
+local path = j:find_path(1)
+j:dump()                -- print map, if make with DEBUG, it will show the path result
 ```
 
-
-# CFLAG explain
-
-avoid entry conner barriers
-
-    make CFLAG="-D__CONNER_SOLVE__"
-
-record path in dump
-
-    make CFLAG="-D__RECORD_PATH__"
-
-print detail search
-
-    make CFLAG="-D__PRINT_DEBUG__"
-
-## if you prefer to across conner diagonal grid then just make.
-
-## if you prefer to avoid across conner diagonal grid:
-
-    make CFLAG="-D__CONNER_SOLVE__"
-    
-## if you prefer to see all the detail and avoid across conner diagonal grid:
-
-    make CFLAG="-D__CONNER_SOLVE__ -D__RECORD_PATH__ -D__PRINT_DEBUG__"
+# complie
+    make or make CFLAG="-DDEBUG" to dump the result path
 
 # to do
 
@@ -78,7 +58,7 @@ https://runzhiwang.github.io/2019/06/21/jps/
 __builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
 ```
 
-3. mem use optimize
+~~3. mem use optimize~~
 
 ~~4. prune mid jump point~~
 
@@ -93,21 +73,3 @@ __builtin_clz(((B->>1) && !B-) ||((B+>>1) && !B+))
 
 ![](https://github.com/rangercyh/path_finding/blob/master/screenshots/4.jpg)
 ![](https://github.com/rangercyh/path_finding/blob/master/screenshots/3.jpg)
-
-## 10000 times path finding
-
-![](https://github.com/rangercyh/path_finding/blob/master/screenshots/1.jpg)
-
-## 10000 times path finding with -D__CONNER_SOLVE__
-
-![](https://github.com/rangercyh/path_finding/blob/master/screenshots/2.jpg)
-
-# mid jump point prune almost doubled performace
-
-## 10000 times path finding with mid jump point prune
-
-![](https://github.com/rangercyh/path_finding/blob/master/screenshots/5.jpg)
-
-## 10000 times path finding  with mid jump point prune with -D__CONNER_SOLVE__
-
-![](https://github.com/rangercyh/path_finding/blob/master/screenshots/6.jpg)
