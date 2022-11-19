@@ -103,8 +103,9 @@ j:dump_connected()      -- print connected mark of map
     search for path from start to end, return the jump points list in table
     if make with CFLAG="-D__CONNER_SOLVE__", it will avoid across conner diagonal grid
 ]]
+j:dump()
 for i = 1, 10000 do
-    j:find_path()
+    j:find_path(2)
 end
 j:dump()                -- print map, if make with CFLAG="-D__RECORD_PATH__", it will show the path result
 print('cost time:', os.clock() - t1, 's')
@@ -119,7 +120,7 @@ local j1 = jps.new({
 j1:set_start(0,5)
 j1:set_end(3,0)
 j1:mark_connected()
-j1:find_path()
+j1:find_path(2)
 j1:dump()
 local j2 = jps.new({
     w = 10,
@@ -143,7 +144,7 @@ for i = 0, 8 do
 end
 j2:set_end(9,9)
 j2:mark_connected()
-j2:find_path()
+j2:find_path(2)
 j2:dump()
 local j3 = jps.new({
     w = 10,
@@ -175,12 +176,12 @@ j3:add_block(3, 5)
 
 j3:set_end(5,5)
 j3:add_block(3, 5)
-local path = j3:find_path()
+local path = j3:find_path(2)
 j3:dump()
 j3:dump_connected()
 j3:add_block(3, 5)
 j3:dump_connected()
-local path = j3:find_path()
+local path = j3:find_path(2)
 j3:dump_connected()
 for k, v in ipairs(path) do
     print(k, v[1], v[2])
@@ -198,3 +199,42 @@ j4:mark_connected()
 j4:dump_connected()
 
 
+
+local w = 20
+local h = 20
+local nav = jps.new ({w = w, h = h})
+
+for x = 0, w - 1 do
+    nav:add_block(x,  5)
+    nav:add_block(x, 15)
+end
+for y = 0, h - 1 do
+    nav:add_block(5, y)
+    nav:add_block(15, y)
+end
+
+nav:clear_block(3,5)
+nav:clear_block(3,15)
+nav:clear_block(5,2)
+nav:clear_block(5,7)
+nav:clear_block(5,17)
+nav:clear_block(10, 5)
+nav:clear_block(10, 15)
+nav:clear_block(15, 2)
+nav:clear_block(15, 8)
+nav:clear_block(15, 18)
+nav:clear_block(18, 5)
+nav:clear_block(18, 15)
+
+nav:mark_connected()
+nav:dump()
+nav:dump_connected()
+
+local t1 = os.clock()
+nav:set_start(1, 1)
+nav:set_end(18, 18)
+for i = 1, 1 do
+    local cpath = nav:find_path(2)
+end
+nav:dump()
+print('cost time:', os.clock() - t1, 's')

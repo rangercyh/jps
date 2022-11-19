@@ -4,9 +4,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
-#include "fibheap.h"
+#include "heap.h"
+#include "intlist.h"
 
-#ifdef __PRINT_DEBUG__
+#ifdef DEBUG
 #define print(format,...) printf(format, ##__VA_ARGS__)
 #else
 #define print(format,...)
@@ -19,6 +20,21 @@
 #define BITSET(a, b) ((a)[BITSLOT(b)] |= BITMASK(b))
 #define BITCLEAR(a, b) ((a)[BITSLOT(b)] &= ~BITMASK(b))
 #define BITTEST(a, b) ((a)[BITSLOT(b)] & BITMASK(b))
+
+enum {
+    NODE_POS = 0,
+    NODE_G,
+    NODE_F,
+    NODE_DIR,
+    NODE_SIZE
+};
+
+enum {
+    TYPE_INIT = 0,
+    OBS_CONNER_OK = 1,
+    OBS_CONNER_AVOID,
+    TYPE_NUM
+};
 
 struct map {
     int width;
@@ -33,7 +49,11 @@ struct map {
     int *queue;
     char *visited;
 
-    struct heap_node **open_set_map;
+    int *open_set_map;
+    IntList *il;
+    heap_t *h;
+
+    int path_type;
 /*
     [map] | [close_set] | [path]
 */
@@ -155,16 +175,6 @@ set_end(lua_State *L) {
     return 0;
 }
 
-static inline int compare(struct node_data *old, struct node_data *new)
-{
-    if (new->f_value < old->f_value) {
-        return 1;
-    }
-    else {
-        return -1;
-    }
-}
-
 static int dist(int one, int two, int w) {
     int ex = one % w, ey = one / w;
     int px = two % w, py = two / w;
@@ -183,14 +193,14 @@ static int dist(int one, int two, int w) {
     }
 }
 
-static struct node_data *construct(struct map *m, int pos, int g_value,
-            unsigned char dir) {
-    struct node_data *node = (struct node_data *)malloc(sizeof(struct node_data));
-    node->pos = pos;
-    node->g_value = g_value;
-    node->f_value = g_value + dist(m->end, pos, m->width);
-    node->dir = dir;
-    return node;
+static void add_to_openset(struct map *m, int pos, int g_value, unsigned char dir) {
+    int idx = il_push_back(m->il);
+    il_set(m->il, idx, NODE_POS, pos);
+    il_set(m->il, idx, NODE_G, g_value);
+    il_set(m->il, idx, NODE_F, g_value + dist(m->end, pos, m->width));
+    il_set(m->il, idx, NODE_DIR, dir);
+    heap_insert(&m->h, idx);
+    m->open_set_map[pos] = idx;
 }
 
 static inline void push_table_to_stack(lua_State *L, int x, int y, int num) {
@@ -236,9 +246,9 @@ static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
         mx = father % w + span;
         my = father / w + span;
     }
-#ifdef __RECORD_PATH__
+#ifdef DEBUG
     int len = m->width * m->height;
-    BITSET(m->m, len * 2 + mx + my * w);
+    BITSET(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + mx + my * w);
 #endif
     push_table_to_stack(L, mx, my, num + 1);
     return 1;
@@ -251,12 +261,13 @@ form_path(lua_State *L, int last, struct map *m) {
     int num = 0;
     int x, y;
     int w = m->width;
-#ifdef __RECORD_PATH__
+#ifdef DEBUG
     int len = m->width * m->height;
+    memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
 #endif
     while (m->comefrom[pos] != -1) {
-#ifdef __RECORD_PATH__
-        BITSET(m->m, len * 2 + pos);
+#ifdef DEBUG
+        BITSET(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + pos);
 #endif
         x = pos % w;
         y = pos / w;
@@ -346,27 +357,27 @@ static unsigned char natural_dir(int pos, unsigned char cur_dir, struct map *m) 
     if (cur_dir == NO_DIRECTION) {
         return FULL_DIRECTIONSET;
     }
-#ifdef __CONNER_SOLVE__
-    if (dir_is_diagonal(cur_dir)) {
-        if (!walkable(m, pos, cur_dir, 7)) {
-            dir_add(&dir_set, (cur_dir + 1) % 8);
-        } else if (!walkable(m, pos, cur_dir, 1)) {
-            dir_add(&dir_set, (cur_dir + 7) % 8);
+    if (m->path_type == OBS_CONNER_AVOID) {
+        if (dir_is_diagonal(cur_dir)) {
+            if (!walkable(m, pos, cur_dir, 7)) {
+                dir_add(&dir_set, (cur_dir + 1) % 8);
+            } else if (!walkable(m, pos, cur_dir, 1)) {
+                dir_add(&dir_set, (cur_dir + 7) % 8);
+            } else {
+                dir_add(&dir_set, cur_dir);
+                dir_add(&dir_set, (cur_dir + 1) % 8);
+                dir_add(&dir_set, (cur_dir + 7) % 8);
+            }
         } else {
             dir_add(&dir_set, cur_dir);
-            dir_add(&dir_set, (cur_dir + 1) % 8);
-            dir_add(&dir_set, (cur_dir + 7) % 8);
         }
     } else {
         dir_add(&dir_set, cur_dir);
+        if (dir_is_diagonal(cur_dir)) {
+            dir_add(&dir_set, (cur_dir + 1) % 8);
+            dir_add(&dir_set, (cur_dir + 7) % 8);
+        }
     }
-#else
-    dir_add(&dir_set, cur_dir);
-    if (dir_is_diagonal(cur_dir)) {
-        dir_add(&dir_set, (cur_dir + 1) % 8);
-        dir_add(&dir_set, (cur_dir + 7) % 8);
-    }
-#endif
     return dir_set;
 }
 
@@ -376,38 +387,38 @@ static unsigned char force_dir(int pos, unsigned char cur_dir, struct map *m) {
     }
     unsigned char dir_set = EMPTY_DIRECTIONSET;
 #define WALKABLE(n) walkable(m, pos, cur_dir, n)
-#ifdef __CONNER_SOLVE__
-    if (!dir_is_diagonal(cur_dir)) {
-        if (WALKABLE(2) && !(WALKABLE(3))) {
-            dir_add(&dir_set, (cur_dir + 2) % 8);
-            if (WALKABLE(1)) {
+    if (m->path_type == OBS_CONNER_OK) {
+        if (dir_is_diagonal(cur_dir)) {
+            if (WALKABLE(6) && !WALKABLE(5)) {
+                dir_add(&dir_set, (cur_dir + 6) % 8);
+            }
+            if (WALKABLE(2) && !WALKABLE(3)) {
+                dir_add(&dir_set, (cur_dir + 2) % 8);
+            }
+        } else {
+            if (WALKABLE(1) && !WALKABLE(2)) {
                 dir_add(&dir_set, (cur_dir + 1) % 8);
             }
-        }
-        if (WALKABLE(6) && !(WALKABLE(5))) {
-            dir_add(&dir_set, (cur_dir + 6) % 8);
-            if (WALKABLE(7)) {
+            if (WALKABLE(7) && !WALKABLE(6)) {
                 dir_add(&dir_set, (cur_dir + 7) % 8);
             }
         }
-    }
-#else
-    if (dir_is_diagonal(cur_dir)) {
-        if (WALKABLE(6) && !WALKABLE(5)) {
-            dir_add(&dir_set, (cur_dir + 6) % 8);
-        }
-        if (WALKABLE(2) && !WALKABLE(3)) {
-            dir_add(&dir_set, (cur_dir + 2) % 8);
-        }
     } else {
-        if (WALKABLE(1) && !WALKABLE(2)) {
-            dir_add(&dir_set, (cur_dir + 1) % 8);
-        }
-        if (WALKABLE(7) && !WALKABLE(6)) {
-            dir_add(&dir_set, (cur_dir + 7) % 8);
+        if (!dir_is_diagonal(cur_dir)) {
+            if (WALKABLE(2) && !(WALKABLE(3))) {
+                dir_add(&dir_set, (cur_dir + 2) % 8);
+                if (WALKABLE(1)) {
+                    dir_add(&dir_set, (cur_dir + 1) % 8);
+                }
+            }
+            if (WALKABLE(6) && !(WALKABLE(5))) {
+                dir_add(&dir_set, (cur_dir + 6) % 8);
+                if (WALKABLE(7)) {
+                    dir_add(&dir_set, (cur_dir + 7) % 8);
+                }
+            }
         }
     }
-#endif
 #undef WALKABLE
     return dir_set;
 }
@@ -424,27 +435,30 @@ static unsigned char next_dir(unsigned char *dirs) {
     return NO_DIRECTION;
 }
 
-static void put_in_open_set(struct heap *open_set, struct map *m, int pos,
-            int len, struct node_data *node, unsigned char dir) {
+static void put_in_open_set(struct map *m, int pos, int len, int from, unsigned char dir) {
     if (!BITTEST(m->m, (BITSLOT(len) + 1) * CHAR_BIT + pos)) {
-        int ng_value = node->g_value + dist(pos, node->pos, m->width);
-        struct heap_node *p = m->open_set_map[pos];
-        if (!p) {
-            m->comefrom[pos] = node->pos;
-            struct node_data *test = construct(m, pos, ng_value, dir);
-            m->open_set_map[pos] = fibheap_insert(open_set, test);
-        } else if (p->data->g_value > ng_value) {
-            m->comefrom[pos] = node->pos;
-            p->data->f_value = p->data->f_value - (p->data->g_value - ng_value);
-            p->data->g_value = ng_value;
-            p->data->dir = dir;
-            fibheap_decrease(open_set, p);
+        int g_value = il_get(m->il, from, NODE_G);
+        int f_pos = il_get(m->il, from, NODE_POS);
+        int ng_value = g_value + dist(pos, f_pos, m->width);
+        int p = m->open_set_map[pos];
+        if (p < 0) {
+            m->comefrom[pos] = f_pos;
+            add_to_openset(m, pos, ng_value, dir);
+        } else {
+            int p_g_value = il_get(m->il, p, NODE_G);
+            if (p_g_value > ng_value) {
+                m->comefrom[pos] = f_pos;
+                int p_f_value = il_get(m->il, p, NODE_F);
+                il_set(m->il, p, NODE_F, p_f_value - (p_g_value - ng_value));
+                il_set(m->il, p, NODE_G, ng_value);
+                il_set(m->il, p, NODE_DIR, dir);
+                push_up(m->h, p);
+            }
         }
     }
 }
 
-#ifdef __CONNER_SOLVE__
-static int diagonal_obs(struct map *m, int pos, int new_pos, unsigned char dir) {
+static int conner_ok_obs(struct map *m, int pos, int new_pos, unsigned char dir) {
     switch (dir) {
         case 1:
             return BITTEST(m->m, pos + 1) || BITTEST(m->m, new_pos - 1);
@@ -458,10 +472,8 @@ static int diagonal_obs(struct map *m, int pos, int new_pos, unsigned char dir) 
     }
     return 0;
 }
-#endif
 
-static int jump_prune(struct heap *open_set, int end, int pos, unsigned char dir,
-            struct map *m, struct node_data *node) {
+static int jump_prune(int end, int pos, unsigned char dir, struct map *m, int from) {
     int w = m->width;
     int h = m->height;
     int len = w * h;
@@ -469,31 +481,31 @@ static int jump_prune(struct heap *open_set, int end, int pos, unsigned char dir
     if (!map_walkable(next_pos, len, m)) {
         return 0;
     }
-#ifdef __CONNER_SOLVE__
-    if (dir_is_diagonal(dir) && diagonal_obs(m, pos, next_pos, dir)) { // conner solve diagonal stop by obs
-        return 0;
+    if (m->path_type == OBS_CONNER_AVOID) {
+        if (dir_is_diagonal(dir) && conner_ok_obs(m, pos, next_pos, dir)) { // conner solve OBS_CONNER_OK stop by obs
+            return 0;
+        }
     }
-#endif
     if (next_pos == end) {
-        put_in_open_set(open_set, m, next_pos, len, node, dir);
+        put_in_open_set(m, next_pos, len, from, dir);
         return 1;
     }
     if (force_dir(next_pos, dir, m) != EMPTY_DIRECTIONSET) {
-        put_in_open_set(open_set, m, next_pos, len, node, dir);
+        put_in_open_set(m, next_pos, len, from, dir);
         return 0;
     }
     if (dir_is_diagonal(dir)) {
         int i;
-        i = jump_prune(open_set, end, next_pos, (dir + 7) % 8, m, node);
+        i = jump_prune(end, next_pos, (dir + 7) % 8, m, from);
         if (i == 1) {
             return 1;
         }
-        i = jump_prune(open_set, end, next_pos, (dir + 1) % 8, m, node);
+        i = jump_prune(end, next_pos, (dir + 1) % 8, m, from);
         if (i == 1) {
             return 1;
         }
     }
-    return jump_prune(open_set, end, next_pos, dir, m, node);
+    return jump_prune(end, next_pos, dir, m, from);
 }
 
 static void flood_mark(struct map *m, int pos, int connected_num, int limit) {
@@ -554,6 +566,17 @@ static int mark_connected(lua_State *L) {
     return 0;
 }
 
+static int compare(int a, int b, void *il) {
+    il = (IntList *)il;
+    int af = il_get(il, a, NODE_F);
+    int bf = il_get(il, b, NODE_F);
+    if (af < bf) {
+        return 1;
+    } else {
+        return -1;
+    }
+}
+
 static int
 find_path(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
@@ -563,40 +586,50 @@ find_path(lua_State *L) {
     if (BITTEST(m->m, m->end)) {
         luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
     }
-    int len = m->width * m->height;
-    memset(&m->m[BITSLOT(len) + 1], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
-    memset(m->comefrom, -1, len * sizeof(int));
-    memset(m->open_set_map, 0, len * sizeof(struct heap_node *));
     if (m->start == m->end) {
         return form_path(L, m->end, m);
     }
+    int type = luaL_optinteger(L, 2, OBS_CONNER_OK);
+    if (type <= TYPE_INIT || type >= TYPE_NUM) {
+        luaL_error(L, "path type(%d) error", type);
+    }
+    m->path_type = type;
     if (!m->mark_connected) {
         mark_connected(L);
     }
     if (m->connected[m->start] != m->connected[m->end]) {
         return 0;
     }
-    struct heap *open_set = fibheap_init(len, compare);
-    struct node_data *node = construct(m, m->start, 0, NO_DIRECTION);
-    m->open_set_map[m->start] = fibheap_insert(open_set, node);;
-    while ((node = fibheap_pop(open_set))) {
-        m->open_set_map[node->pos] = NULL;
-        BITSET(m->m, (BITSLOT(len) + 1) * CHAR_BIT + node->pos);
-        if (node->pos == m->end) {
-            fibheap_destroy(open_set);
-            return form_path(L, node->pos, m);
+
+    int len = m->width * m->height;
+    // closeset clear
+    memset(&m->m[BITSLOT(len) + 1], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+    memset(m->comefrom, -1, len * sizeof(int));
+    memset(m->open_set_map, -1, len * sizeof(int));
+    il_clear(m->il);
+    heap_init(m->h, compare, m->il);
+    heap_clear(m->h);
+
+    add_to_openset(m, m->start, 0, NO_DIRECTION);
+    int cur, cpos, cdir;
+    unsigned char check_dirs, dir;
+    while ((cur = heap_pop(m->h)) >= 0) {
+        cpos = il_get(m->il, cur, NODE_POS);
+        m->open_set_map[cpos] = -1;
+        BITSET(m->m, (BITSLOT(len) + 1) * CHAR_BIT + cpos);
+        if (cpos == m->end) {
+            return form_path(L, cpos, m);
         }
-        unsigned char cur_dir = node->dir;
-        unsigned char check_dirs = natural_dir(node->pos, cur_dir, m) | force_dir(node->pos, cur_dir, m);
-        unsigned char dir = next_dir(&check_dirs);
+        cdir = il_get(m->il, cur, NODE_DIR);
+        check_dirs = natural_dir(cpos, cdir, m) | force_dir(cpos, cdir, m);
+        dir = next_dir(&check_dirs);
         while (dir != NO_DIRECTION) {
-            if (jump_prune(open_set, m->end, node->pos, dir, m, node) == 1) { // found end
+            if (jump_prune(m->end, cpos, dir, m, cur) == 1) { // found end
                 break;
             }
             dir = next_dir(&check_dirs);
         }
     }
-    fibheap_destroy(open_set);
     return 0;
 }
 
@@ -628,7 +661,7 @@ dump(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     printf("dump map state!!!!!!\n");
     int i, pos;
-#ifdef __RECORD_PATH__
+#ifdef DEBUG
     int len = m->width * m->height;
 #endif
     char s[m->width * 2 + 2];
@@ -642,9 +675,9 @@ dump(lua_State *L) {
         if (BITTEST(m->m, i)) {
             s[pos++] = '*';
             mark = 1;
+#ifdef DEBUG
         } else {
-#ifdef __RECORD_PATH__
-            if (BITTEST(m->m, len * 2 + i)) {
+            if (BITTEST(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + i)) {
                 s[pos++] = '0';
                 mark = 1;
             }
@@ -674,10 +707,12 @@ static int
 gc(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     free(m->comefrom);
-    free(m->open_set_map);
     free(m->connected);
     free(m->queue);
     free(m->visited);
+    free(m->open_set_map);
+    il_destroy(m->il);
+    heap_free(m->h);
     return 0;
 }
 
@@ -714,7 +749,7 @@ lnewmap(lua_State *L) {
     int height = getfield(L, "h");
     lua_assert(width > 0 && height > 0);
     int len = width * height;
-#ifdef __RECORD_PATH__
+#ifdef DEBUG
     int map_men_len = (BITSLOT(len) + 1) * 3;
 #else
     int map_men_len = (BITSLOT(len) + 1) * 2;
@@ -725,11 +760,14 @@ lnewmap(lua_State *L) {
     m->start = -1;
     m->end = -1;
     m->mark_connected = 0;
+    m->comefrom = (int *)malloc(len * sizeof(int));
     m->connected = (int *)malloc(len * sizeof(int));
     m->queue = (int *)malloc(len * sizeof(int));
     m->visited = (char *)malloc(len * sizeof(char));
-    m->comefrom = (int *)malloc(len * sizeof(int));
-    m->open_set_map = (struct heap_node **)malloc(len * sizeof(struct heap_node *));
+    m->open_set_map = (int *)malloc(len * sizeof(int));
+    m->il = il_create(NODE_SIZE);
+    m->h = heap_new();
+    m->path_type = OBS_CONNER_OK;
     memset(m->m, 0, map_men_len * sizeof(m->m[0]));
     if (lua_getfield(L, 1, "obstacle") == LUA_TTABLE) {
         int i = 1;
