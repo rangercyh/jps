@@ -235,6 +235,32 @@ nav:set_start(1, 1)
 nav:set_end(18, 18)
 for i = 1, 1 do
     local cpath = nav:find_path()
+    print(#cpath)
+    for k, v in ipairs(cpath) do
+        print(k, table.unpack(v))
+    end
 end
 nav:dump()
 print('cost time:', os.clock() - t1, 's')
+
+
+nav:set_start(1, 1)
+nav:set_end(1, 1)
+print(nav:find_path())
+nav:dump()
+nav:find_path(2)
+nav:dump()
+nav:add_block(3,5)
+nav:add_block(5,2)
+nav:mark_connected()
+nav:dump_connected()
+local t = nav:find_path()
+print(#t)
+for k, v in pairs(t) do
+    print(k, table.unpack(v))
+end
+
+nav:set_start(1, 1)
+nav:set_end(6, 1)
+local t = nav:find_path()
+print(t)

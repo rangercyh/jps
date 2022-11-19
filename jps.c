@@ -1,19 +1,16 @@
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
-#include "heap.h"
-#include "intlist.h"
+#include <assert.h>
+
+#include "jps.h"
 
 #ifdef DEBUG
+#include <stdio.h>
 #define print(format,...) printf(format, ##__VA_ARGS__)
 #else
 #define print(format,...)
 #endif
-
-#define MT_NAME ("_jps_search_metatable")
 
 #define BITMASK(b) (1 << ((b) % CHAR_BIT))
 #define BITSLOT(b) ((b) / CHAR_BIT)
@@ -36,38 +33,12 @@ enum {
     TYPE_NUM
 };
 
-struct map {
-    int width;
-    int height;
-    int start;
-    int end;
-    int *comefrom;
-
-//  for mark connected
-    char mark_connected;
-    int *connected;
-    int *queue;
-    char *visited;
-
-    int *open_set_map;
-    IntList *il;
-    heap_t *h;
-
-    int path_type;
-/*
-    [map] | [close_set] | [path]
-*/
-    char m[0];
-};
-
-static inline int
-getfield(lua_State *L, const char *f) {
-    if (lua_getfield(L, -1, f) != LUA_TNUMBER) {
-        return luaL_error(L, "invalid type %s", f);
-    }
-    int v = lua_tointeger(L, -1);
-    lua_pop(L, 1);
-    return v;
+int jps_get_memory_len(int len) {
+#ifdef DEBUG
+    return (BITSLOT(len) + 1) * 3;
+#else
+    return (BITSLOT(len) + 1) * 2;
+#endif
 }
 
 static inline int check_in_map(int x, int y, int w, int h) {
@@ -78,100 +49,64 @@ static inline int check_in_map_pos(int pos, int limit) {
     return pos >= 0 && pos < limit;
 }
 
-static inline int
-setobstacle(lua_State *L, struct map *m, int x, int y) {
+int jps_set_obstacle(struct map *m, int x, int y, int bit) {
     if (!check_in_map(x, y, m->width, m->height)) {
-        luaL_error(L, "Position (%d,%d) is out of map", x, y);
+        return -1;
     }
-    BITSET(m->m, m->width * y + x);
-    return 0;
-}
-
-static int
-add_block(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    int x = luaL_checkinteger(L, 2);
-    int y = luaL_checkinteger(L, 3);
-    if (!check_in_map(x, y, m->width, m->height)) {
-        luaL_error(L, "Position (%d,%d) is out of map", x, y);
-    }
-    BITSET(m->m, m->width * y + x);
-    m->mark_connected = 0;
-    return 0;
-}
-
-static int
-add_blockset(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    lua_settop(L, 2);
-    int i = 1;
-    while (lua_geti(L, -1, i) == LUA_TTABLE) {
-        lua_geti(L, -1, 1);
-        int x = lua_tointeger(L, -1);
-        lua_geti(L, -2, 2);
-        int y = lua_tointeger(L, -1);
-        setobstacle(L, m, x, y);
-        lua_pop(L, 3);
-        ++i;
+    if (bit) {
+        BITSET(m->m, m->width * y + x);
+    } else {
+        BITCLEAR(m->m, m->width * y + x);
     }
     m->mark_connected = 0;
+#ifdef DEBUG
+    int len = m->width * m->height;
+    memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+#endif //DEBUG
     return 0;
 }
 
-static int
-clear_block(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    int x = luaL_checkinteger(L, 2);
-    int y = luaL_checkinteger(L, 3);
-    if (!check_in_map(x, y, m->width, m->height)) {
-        luaL_error(L, "Position (%d,%d) is out of map", x, y);
-    }
-    BITCLEAR(m->m, m->width * y + x);
-    m->mark_connected = 0;
-    return 0;
-}
-
-static int
-clear_allblock(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+void jps_clearall_obs(struct map *m) {
     int i;
     for (i = 0; i < m->width * m->height; i++) {
         BITCLEAR(m->m, i);
     }
     m->mark_connected = 0;
-    return 0;
+#ifdef DEBUG
+    int len = m->width * m->height;
+    memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+#endif //DEBUG
 }
 
-static int
-set_start(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    int x = luaL_checkinteger(L, 2);
-    int y = luaL_checkinteger(L, 3);
+int jps_set_start(struct map *m, int x, int y) {
     if (!check_in_map(x, y, m->width, m->height)) {
-        luaL_error(L, "Position (%d,%d) is out of map", x, y);
+        return -1;
     }
     int pos = m->width * y + x;
     if (BITTEST(m->m, pos)) {
-        luaL_error(L, "Position (%d,%d) is in block", x, y);
+        return -1;
     }
     m->start = pos;
+#ifdef DEBUG
+    int len = m->width * m->height;
+    memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+#endif //DEBUG
     return 0;
 }
 
-static int
-set_end(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    int x = luaL_checkinteger(L, 2);
-    int y = luaL_checkinteger(L, 3);
+int jps_set_end(struct map *m, int x, int y) {
     if (!check_in_map(x, y, m->width, m->height)) {
-        luaL_error(L, "Position (%d,%d) is out of map", x, y);
+        return -1;
     }
     int pos = m->width * y + x;
     if (BITTEST(m->m, pos)) {
-        luaL_error(L, "Position (%d,%d) is in block", x, y);
+        return -1;
     }
     m->end = pos;
+#ifdef DEBUG
+    int len = m->width * m->height;
+    memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
+#endif //DEBUG
     return 0;
 }
 
@@ -203,21 +138,11 @@ static void add_to_openset(struct map *m, int pos, int g_value, unsigned char di
     m->open_set_map[pos] = idx;
 }
 
-static inline void push_table_to_stack(lua_State *L, int x, int y, int num) {
-    lua_newtable(L);
-    lua_pushinteger(L, x);
-    lua_rawseti(L, -2, 1);
-    lua_pushinteger(L, y);
-    lua_rawseti(L, -2, 2);
-    lua_rawseti(L, -2, num);
-}
-
-static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
-            int father, int w, int num) {
+static void insert_mid_jump_point(struct map *m, int cur, int father, int w, IntList *out) {
     int dx = cur % w - father % w;
     int dy = cur / w - father / w;
     if (dx == 0 || dy == 0) {
-        return 0;
+        return;
     }
     if (dx < 0) {
         dx = -dx;
@@ -226,7 +151,7 @@ static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
         dy = -dy;
     }
     if (dx == dy) {
-        return 0;
+        return;
     }
     int span = dx;
     if (dy < dx) {
@@ -249,33 +174,33 @@ static int insert_mid_jump_point(lua_State *L, struct map *m, int cur,
 #ifdef DEBUG
     int len = m->width * m->height;
     BITSET(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + mx + my * w);
-#endif
-    push_table_to_stack(L, mx, my, num + 1);
-    return 1;
+#endif // DEBUG
+    int idx = il_push_back(out);
+    il_set(out, idx, 0, mx);
+    il_set(out, idx, 1, my);
 }
 
-static int
-form_path(lua_State *L, int last, struct map *m) {
+static void form_path(int last, struct map *m, IntList *out) {
     int pos = last;
-    lua_newtable(L);
-    int num = 0;
     int x, y;
     int w = m->width;
 #ifdef DEBUG
     int len = m->width * m->height;
     memset(&m->m[(BITSLOT(len) + 1) * 2], 0, (BITSLOT(len) + 1) * sizeof(m->m[0]));
-#endif
+#endif //DEBUG
+    int idx;
     while (m->comefrom[pos] != -1) {
 #ifdef DEBUG
         BITSET(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + pos);
-#endif
+#endif //DEBUG
         x = pos % w;
         y = pos / w;
-        push_table_to_stack(L, x, y, ++num);
-        num += insert_mid_jump_point(L, m, pos, m->comefrom[pos], w, num);
+        idx = il_push_back(out);
+        il_set(out, idx, 0, x);
+        il_set(out, idx, 1, y);
+        insert_mid_jump_point(m, pos, m->comefrom[pos], w, out);
         pos = m->comefrom[pos];
     }
-    return 1;
 }
 
 #define NO_DIRECTION 8
@@ -301,8 +226,7 @@ static inline int dir_is_diagonal(unsigned char dir)
     return (dir % 2) != 0;
 }
 
-static inline int
-map_walkable(int pos, int limit, struct map *m) {
+static inline int map_walkable(int pos, int limit, struct map *m) {
     return check_in_map_pos(pos, limit) && !BITTEST(m->m, pos);
 }
 
@@ -549,8 +473,7 @@ static void flood_mark(struct map *m, int pos, int connected_num, int limit) {
 #undef CHECK_POS
 }
 
-static int mark_connected(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+void jps_mark_connected(struct map *m) {
     if (!m->mark_connected) {
         m->mark_connected = 1;
         int len = m->width * m->height;
@@ -563,7 +486,6 @@ static int mark_connected(lua_State *L) {
             }
         }
     }
-    return 0;
 }
 
 static int compare(int a, int b, void *il) {
@@ -577,28 +499,25 @@ static int compare(int a, int b, void *il) {
     }
 }
 
-static int
-find_path(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+int jps_path_finding(struct map *m, int type, IntList *out) {
     if (BITTEST(m->m, m->start)) {
-        luaL_error(L, "start pos(%d,%d) is in block", m->start % m->width, m->start / m->width);
+        return 1;
     }
     if (BITTEST(m->m, m->end)) {
-        luaL_error(L, "end pos(%d,%d) is in block", m->end % m->width, m->end / m->width);
+        return 2;
     }
     if (m->start == m->end) {
-        return form_path(L, m->end, m);
+        return 0;
     }
-    int type = luaL_optinteger(L, 2, OBS_CONNER_OK);
     if (type <= TYPE_INIT || type >= TYPE_NUM) {
-        luaL_error(L, "path type(%d) error", type);
+        return 3;
     }
     m->path_type = type;
     if (!m->mark_connected) {
-        mark_connected(L);
+        jps_mark_connected(m);
     }
     if (m->connected[m->start] != m->connected[m->end]) {
-        return 0;
+        return 4;
     }
 
     int len = m->width * m->height;
@@ -618,7 +537,8 @@ find_path(lua_State *L) {
         m->open_set_map[cpos] = -1;
         BITSET(m->m, (BITSLOT(len) + 1) * CHAR_BIT + cpos);
         if (cpos == m->end) {
-            return form_path(L, cpos, m);
+            form_path(cpos, m, out);
+            return 0;
         }
         cdir = il_get(m->il, cur, NODE_DIR);
         check_dirs = natural_dir(cpos, cdir, m) | force_dir(cpos, cdir, m);
@@ -630,58 +550,52 @@ find_path(lua_State *L) {
             dir = next_dir(&check_dirs);
         }
     }
-    return 0;
+    return 4;
 }
 
-static int
-dump_connected(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    printf("dump map connected state!!!!!!\n");
+void jps_dump_connected(struct map *m) {
+#ifdef DEBUG
+    print("dump map connected state!!!!!!\n");
     if (!m->mark_connected) {
-        printf("have not mark connected.\n");
-        return 0;
+        print("have not mark connected.\n");
+        return;
     }
     int i;
     for (i = 0; i < m->width * m->height; i++) {
         int mark = m->connected[i];
         if (mark > 0) {
-            printf("%d ", mark);
+            print("%d ", mark);
         } else {
-            printf("* ");
+            print("* ");
         }
         if ((i + 1) % m->width == 0) {
-            printf("\n");
+            print("\n");
         }
     }
-    return 0;
+#endif // DEBUG
 }
 
-static int
-dump(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    printf("dump map state!!!!!!\n");
-    int i, pos;
+void jps_dump(struct map *m) {
 #ifdef DEBUG
+    print("dump map state!!!!!!\n");
+    int i, pos;
     int len = m->width * m->height;
-#endif
     char s[m->width * 2 + 2];
     for (pos = 0, i = 0; i < m->width * m->height; i++) {
         if (i > 0 && i % m->width == 0) {
             s[pos - 1] = '\0';
-            printf("%s\n", s);
+            print("%s\n", s);
             pos = 0;
         }
         int mark = 0;
         if (BITTEST(m->m, i)) {
             s[pos++] = '*';
             mark = 1;
-#ifdef DEBUG
         } else {
             if (BITTEST(m->m, (BITSLOT(len) + 1) * 2 * CHAR_BIT + i)) {
                 s[pos++] = '0';
                 mark = 1;
             }
-#endif
         }
         if (i == m->start) {
             s[pos++] = 'S';
@@ -699,64 +613,23 @@ dump(lua_State *L) {
         }
     }
     s[pos - 1] = '\0';
-    printf("%s\n", s);
-    return 0;
+    print("%s\n", s);
+#endif // DEBUG
 }
 
-static int
-gc(lua_State *L) {
-    struct map *m = luaL_checkudata(L, 1, MT_NAME);
-    free(m->comefrom);
-    free(m->connected);
-    free(m->queue);
-    free(m->visited);
-    free(m->open_set_map);
-    il_destroy(m->il);
-    heap_free(m->h);
-    return 0;
+struct map *jps_create(int w, int h) {
+    assert(w > 0 && h > 0);
+    int len = w * h;
+    int map_men_len = jps_get_memory_len(len);
+    struct map *m = (struct map *)malloc(sizeof(struct map) + map_men_len * sizeof(m->m[0]));
+    jps_init(m, w, h, map_men_len);
+    return m;
 }
 
-static int
-lmetatable(lua_State *L) {
-    if (luaL_newmetatable(L, MT_NAME)) {
-        luaL_Reg l[] = {
-            {"add_block", add_block},
-            {"add_blockset", add_blockset},
-            {"clear_block", clear_block},
-            {"clear_allblock", clear_allblock},
-            {"set_start", set_start},
-            {"set_end", set_end},
-            {"find_path", find_path},
-            {"mark_connected", mark_connected},
-            {"dump_connected", dump_connected},
-            {"dump", dump},
-            { NULL, NULL }
-        };
-        luaL_newlib(L, l);
-        lua_setfield(L, -2, "__index");
-
-        lua_pushcfunction(L, gc);
-        lua_setfield(L, -2, "__gc");
-    }
-    return 1;
-}
-
-static int
-lnewmap(lua_State *L) {
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_settop(L, 1);
-    int width = getfield(L, "w");
-    int height = getfield(L, "h");
-    lua_assert(width > 0 && height > 0);
-    int len = width * height;
-#ifdef DEBUG
-    int map_men_len = (BITSLOT(len) + 1) * 3;
-#else
-    int map_men_len = (BITSLOT(len) + 1) * 2;
-#endif
-    struct map *m = lua_newuserdata(L, sizeof(struct map) + map_men_len * sizeof(m->m[0]));
-    m->width = width;
-    m->height = height;
+void jps_init(struct map *m, int w, int h, int map_men_len) {
+    int len = w * h;
+    m->width = w;
+    m->height = h;
     m->start = -1;
     m->end = -1;
     m->mark_connected = 0;
@@ -769,32 +642,14 @@ lnewmap(lua_State *L) {
     m->h = heap_new();
     m->path_type = OBS_CONNER_OK;
     memset(m->m, 0, map_men_len * sizeof(m->m[0]));
-    if (lua_getfield(L, 1, "obstacle") == LUA_TTABLE) {
-        int i = 1;
-        while (lua_geti(L, -1, i) == LUA_TTABLE) {
-            lua_geti(L, -1, 1);
-            int x = lua_tointeger(L, -1);
-            lua_geti(L, -2, 2);
-            int y = lua_tointeger(L, -1);
-            setobstacle(L, m, x, y);
-            lua_pop(L, 3);
-            ++i;
-        }
-        lua_pop(L, 1);
-    }
-    lua_pop(L, 1);
-    lmetatable(L);
-    lua_setmetatable(L, -2);
-    return 1;
 }
 
-LUAMOD_API int
-luaopen_jps(lua_State *L) {
-    luaL_checkversion(L);
-    luaL_Reg l[] = {
-        { "new", lnewmap },
-        { NULL, NULL },
-    };
-    luaL_newlib(L, l);
-    return 1;
+void jps_destory(struct map *m) {
+    free(m->comefrom);
+    free(m->connected);
+    free(m->queue);
+    free(m->visited);
+    free(m->open_set_map);
+    il_destroy(m->il);
+    heap_free(m->h);
 }

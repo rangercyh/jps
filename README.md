@@ -43,6 +43,9 @@ j:dump()                -- print map, if make with DEBUG, it will show the path 
 # complie
     make or make CFLAG="-DDEBUG" to dump the result path
 
+    testc need linux asan to check memory
+    yum install libasan
+
 # to do
 
 https://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-icaps14.pdf
