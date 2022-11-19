@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "intlist.h"
 #include "jps.h"
 
 void main() {
