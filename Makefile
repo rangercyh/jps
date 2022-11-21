@@ -13,7 +13,7 @@ jps.so: jps.c heap.c intlist.c luabinding.c
 	gcc $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f jps.so testc
+	rm -f jps.so testc testheap
 
 export LUA_CPATH=$(TOP)/?.so
 export LUA_PATH=$(TOP)/test/?.lua
@@ -24,3 +24,5 @@ test:
 testc:
 	gcc -lm -fsanitize=address -ggdb -DDEBUG heap.c intlist.c jps.c testc.c -o testc
 
+testheap:
+	gcc -lm -fsanitize=address -ggdb -DDEBUG heap.c testheap.c -o testheap

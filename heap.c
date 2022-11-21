@@ -167,6 +167,6 @@ heap_dump(heap_t *h) {
     printf("===== head %p, count:%d, size:%d\n", h, h->count, h->size);
     for (idx = 0; idx < h->count; idx++)
         printf("%d ", h->array[idx]);
-    printf("\n");
+    printf("===== head end\n");
 }
 #endif // DEBUG
