@@ -36,7 +36,7 @@ j:dump_connected()      -- print connected mark of map
     OBS_CONNER_OK = 1 : the path can across conner diagonal grid
     OBS_CONNER_AVOID = 2 : avoid across conner diagonal grid
 ]]
-local path = j:find_path(1)
+local path = j:find_path()
 j:dump()                -- print map, if make with DEBUG, it will show the path result
 ```
 
