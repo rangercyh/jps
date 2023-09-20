@@ -18,6 +18,7 @@ local j = jps.new({     -- create 2D grid map
 j:set_start(0,0)        -- set start point
 j:set_end(10,10)        -- set end point
 j:add_block(1, 1)       -- set one obstacle point
+j:is_block(1, 1)        -- check one obstacle point
 j:add_blockset({        -- batch set obstacle points
     {1,0},{1,19},{5,3},{6,3},{6,4},{6,5},{5,5},
     {9,9},{10,9},{11,9},{12,9},{13,9},
