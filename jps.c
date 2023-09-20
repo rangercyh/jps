@@ -66,6 +66,18 @@ int jps_set_obstacle(struct map *m, int x, int y, int bit) {
     return 0;
 }
 
+int jps_is_obstacle(struct map *m, int x, int y) {
+    int pos = m->width * y + x;
+    if (!check_in_map(x, y, m->width, m->height)) {
+        return -1;
+    }
+    if (BITTEST(m->m, pos)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 void jps_clearall_obs(struct map *m) {
     int i;
     for (i = 0; i < m->width * m->height; i++) {

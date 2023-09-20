@@ -74,6 +74,8 @@ local j = jps.new({     -- create 2D grid map
         {1,1},{1,2},{1,3},{1,4},{1,5},{1,6}
     },
 })
+assert(j:is_block(1, 1))
+assert(not j:is_block(0, 0))
 j:set_start(0,10)
 j:set_end(19,1)
 --- j:clear_allblock()
