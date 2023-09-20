@@ -34,6 +34,7 @@ void jps_destory(struct map *m);
 int jps_get_memory_len(int len);
 
 int jps_set_obstacle(struct map *m, int x, int y, int bit);
+int jps_is_obstacle(struct map *m, int x, int y);
 void jps_clearall_obs(struct map *m);
 int jps_set_start(struct map *m, int x, int y);
 int jps_set_end(struct map *m, int x, int y);

@@ -44,6 +44,23 @@ static int add_blockset(lua_State *L) {
     return 0;
 }
 
+static int is_block(lua_State *L) {
+    struct map *m = luaL_checkudata(L, 1, MT_NAME);
+    int x = luaL_checkinteger(L, 2);
+    int y = luaL_checkinteger(L, 3);
+    int ret = jps_is_obstacle(m, x, y);
+    if (ret < 0) {
+        luaL_error(L, "Position (%d,%d) is out of map", x, y);
+        return 0;
+    }
+    if (ret == 1) {
+        lua_pushboolean(L, 1);
+    } else {
+        lua_pushboolean(L, 0);
+    }
+    return 1;
+}
+
 static int clear_block(lua_State *L) {
     struct map *m = luaL_checkudata(L, 1, MT_NAME);
     int x = luaL_checkinteger(L, 2);
@@ -149,6 +166,7 @@ static int lmetatable(lua_State *L) {
         luaL_Reg l[] = {
             {"add_block", add_block},
             {"add_blockset", add_blockset},
+            {"is_block", is_block},
             {"clear_block", clear_block},
             {"clear_allblock", clear_allblock},
             {"set_start", set_start},
